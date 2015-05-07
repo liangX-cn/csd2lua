@@ -33,16 +33,12 @@ function _L.setValue(obj, name, tag, size, position, ancpoint, color, opacity, z
 end
 
 function _L.setClickEvent(obj, cb, evt)
-	if nil ~= cb then
-		obj:addClickEventListener(cb("", obj, evt))
-	end
+	if nil ~= cb then obj:addClickEventListener(cb("", obj, evt)) end
 	return _L
 end
 
 function _L.setTouchEvent(obj, cb, evt)
-	if nil ~= cb then
-		obj:addTouchEventListener(cb("", obj, evt))
-	end
+	if nil ~= cb then obj:addTouchEventListener(cb("", obj, evt)) end
 	return _L
 end
 
@@ -59,11 +55,11 @@ function _L.setMargin(left, top, right, bottom)
 	return _L
 end
 
-function _L.setSize(width, height, widthEnabled, heightEnabled)
+function _L.setSize(width, height, wEnabled, hEnabled)
 	if nil ~= width then _L.lay:setPercentWidth(width) end
 	if nil ~= height then _L.lay:setPercentHeight(height) end
-	if nil ~= widthEnabled then _L.lay:setPercentWidthEnabled(widthEnabled) end
-	if nil ~= heightEnabled then _L.lay:setPercentHeightEnabled(heightEnabled) end
+	if nil ~= wEnabled then _L.lay:setPercentWidthEnabled(wEnabled) end
+	if nil ~= hEnabled then _L.lay:setPercentHeightEnabled(hEnabled) end
 	return _L
 end
 
@@ -75,9 +71,9 @@ function _L.setPosition(x, y, xEnabled, yEnabled)
 	return _L
 end
 
-function _L.setStretch(widthEnabled, heightEnabled)
-	if nil ~= widthEnabled then _L.lay:setStretchWidthEnable(widthEnabled) end
-	if nil ~= heightEnabled then _L.lay:setStretchHeightEnable(heightEnabled) end
+function _L.setStretch(wEnabled, hEnabled)
+	if nil ~= wEnabled then _L.lay:setStretchWidthEnable(wEnabled) end
+	if nil ~= hEnabled then _L.lay:setStretchHeightEnable(hEnabled) end
 	return _L
 end
 
@@ -128,6 +124,21 @@ local function nextSiblingIter(node)
 	end
 end
 
+local function isPointEqual(pt, values)
+	return pt.x == values[1] and pt.y == values[2]
+end
+
+local function isSizeEqual(siz, values)
+	return siz.width == values[1] and siz.height == values[2]
+end
+
+local function isColorEqual(clr, values)
+	if clr.r ~= values[1] or clr.g ~= values[2] or clr.b ~= values[3] or (clr.a and clr.a ~= values[4]) then
+		return false
+	end
+	return true	
+end
+
 --/////////////////////////////////////////////////////////////////////////////
 function _M:parseNodeXml(root, obj, className)
 --	print("parseNodeXml(className=" .. className .. ")")
@@ -154,7 +165,7 @@ function _M:parseNodeXml(root, obj, className)
 		elseif name == "Alpha" then
 			opts["Opacity"] = tonumber(value) or 255
 		elseif name == "TouchEnable" then
-			opts["TouchEnabled"] = (value == "True")
+			lays[name .. "d"] = (value == "True")
 		elseif name == "UserData" then
 		elseif name == "FrameEvent" then
 		elseif name == "CallBackType" or name == "CallBackName" then
@@ -163,8 +174,19 @@ function _M:parseNodeXml(root, obj, className)
 			name == "PercentWidthEnabled" or name == "PercentHeightEnabled" or 
 			name == "StretchWidthEnable" or name == "StretchHeightEnable" then
 			lays[name] = (value == "True")
-		elseif name == "HorizontalEdge" or name == "VerticalEdge" or 
-			name == "LeftMargin" or  name == "RightMargin" or 
+		-- fix bad name likes PercentHeightEnable
+		elseif name == "PositionPercentXEnable" or name == "PositionPercentYEnable" or
+			name == "PercentWidthEnable" or name == "PercentHeightEnable" then
+			lays[name .. "d"] = (value == "True")
+		elseif name == "HorizontalEdge" or name == "VerticalEdge" then
+			if value == "LeftEdge" or value == "BottomEdge" then
+				lays[name] = 1
+			elseif value == "RightEdge" or value == "TopEdge" then
+				lays[name] = 2
+			elseif value == "BothEdge" then
+				lays[name] = 3
+			end	
+		elseif name == "LeftMargin" or  name == "RightMargin" or 
 			name == "TopMargin" or name == "BottomMargin" then
 			lays[name] = tonumber(value) or 0
 		elseif name == "ClipAble" then
@@ -200,7 +222,7 @@ function _M:parseNodeXml(root, obj, className)
 			opts[name] = { tonumber(c["@ScaleX"]) or 0, tonumber(c["@ScaleY"]) or 0 }
 		elseif name == "CColor" then
 			opts["Color"] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
-				tonumber(c["@B"]) or 0, tonumber(c["@A"]) or 255 }
+				tonumber(c["@B"]) or 0, tonumber(c["@A"])}
 		elseif name == "Size" then
 			if obj and type(obj.getContentSize) == "function" then
 				opts["ContentSize"] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
@@ -227,7 +249,7 @@ function _M:parseNodeXml(root, obj, className)
 			end
 
 			opts[name] = { f, t, p }
-        elseif name == "SingleColor" or name == "FirstColor" or name == "EndColor" then
+        elseif name == "SingleColor" or name == "FirstColor" or name == "EndColor" or name == "TextColor" then
             opts[name] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
             	tonumber(c["@B"]) or 0, tonumber(c["@A"]) }
 		elseif name == "ColorVector" then
@@ -262,19 +284,15 @@ function _M:parseNodeXml(root, obj, className)
                 	opts[name] = nil    
                 end
             elseif name == "AnchorPoint" then
-                if obj["get" .. name](obj).x == value[1] and
-                	obj["get" .. name](obj).y == value[2] then
+                if isPointEqual(obj["get" .. name](obj), value) then
                 	opts[name] = nil    
                 end
             elseif name == "ContentSize" or name == "Size" then
-                if obj["get" .. name](obj).width == value[1] and
-                	obj["get" .. name](obj).height == value[2] then
+                if isSizeEqual(obj["get" .. name](obj), value) then
                 	opts[name] = nil    
                 end
 			elseif name == "Color" then               
-                if obj["get" .. name](obj).r == value[1] and
-                	obj["get" .. name](obj).g == value[2] and 
-                	obj["get" .. name](obj).b == value[3] then
+                if isColorEqual(obj:getColor(), value) then
                 	opts[name] = nil    
                 end
 			elseif name == "FileData" or name == "NormalFileData" or 
@@ -289,7 +307,7 @@ function _M:parseNodeXml(root, obj, className)
 	                local s = string.sub(name, 1, string.find(name, "FileData") - 1)
 					str = string.format("obj:loadTexture%s(\"%s\", %s)\n", s, tostring(value[1]), tostring(value[2]))
 				end
-			elseif name == "SingleColor" or name == "FirstColor" or name == "EndColor" then	 
+			elseif name == "SingleColor" or name == "FirstColor" or name == "EndColor" or name == "TextColor" then	 
 				local clr
 				if value[4] then
 					clr = string.format("cc.c4b(%s, %s, %s, %s)", tostring(value[1]), tostring(value[2]), tostring(value[3]), tostring(value[4]))
@@ -297,9 +315,13 @@ function _M:parseNodeXml(root, obj, className)
 					clr = string.format("cc.c3b(%s, %s, %s)", tostring(value[1]), tostring(value[2]), tostring(value[3]))
 				end	
 	            if className == "Layout" then
-	                if name == "SingleColor" then
+	                if name == "SingleColor" and not isColorEqual(obj:getBackGroundColor(), value) then
 	                	str = "obj:setBackGroundColor(" .. clr .. ")\n"
-					end	
+					end
+				elseif className == "Button" then	
+	                if name == "TextColor" and not isColorEqual(obj:getTitleColor(), value) then
+						str = "obj:setTitleColor(" .. clr .. ")\n"
+					end
 				end
             elseif (type(obj["get" .. name]) == "function" and obj["get" .. name](obj) ~= value) or
 				(type(obj["is" .. name]) == "function" and obj["is" .. name](obj) ~= value) then
@@ -353,8 +375,13 @@ function _M:parseNodeXml(root, obj, className)
     		tostring(opts.AnchorPoint[2] or 0)) 
     end    	
     if opts.Color then
-    	color = string.format("cc.c4b(%d, %d, %d, %d)", opts.Color[1] or 0, 
-    		opts.Color[2] or 0, opts.Color[3] or 0, opts.Color[4] or 0) 
+    	if opts.Color[4] then
+			color = string.format("cc.c4b(%d, %d, %d, %d)", opts.Color[1] or 0, 
+				opts.Color[2] or 0, opts.Color[3] or 0, opts.Color[4] or 0) 
+    	else
+			color = string.format("cc.c3b(%d, %d, %d)", opts.Color[1] or 0, 
+				opts.Color[2] or 0, opts.Color[3] or 0) 
+    	end	
     end    	
 	self:write(string.format("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s)\n",
 		tostring(opts.Name), tostring(opts.Tag), tostring(size), tostring(position), tostring(ancpoint),
@@ -390,7 +417,7 @@ function _M:parseNodeXml(root, obj, className)
 				tostring(lays.StretchWidthEnable), tostring(lays.StretchHeightEnable))
 		end		
         if nil ~= lays.HorizontalEdge or nil ~= lays.VerticalEdge then
-			edges = string.format(".setEdge(%s, %s)\n",
+			edges = string.format(".setEdge(%s, %s)",
 				tostring(lays.HorizontalEdge), tostring(lays.VerticalEdge))
 		end		
 		
