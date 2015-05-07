@@ -139,124 +139,540 @@ local function isColorEqual(clr, values)
 	return true	
 end
 
+local function toColorStr(value)
+	if value and value[4] then
+		return string.format("cc.c4b(%s, %s, %s, %s)", tostring(value[1]), tostring(value[2]), tostring(value[3]), tostring(value[4]))
+	elseif value then
+		return string.format("cc.c3b(%s, %s, %s)", tostring(value[1]), tostring(value[2]), tostring(value[3]))
+	else
+		return "nil"	
+	end	
+end
+
+local function toSizeStr(value)
+	if value then
+		return string.format("cc.size(%s, %s)", tostring(value[1] or 0), tostring(value[2] or 0)) 
+	else
+		return "nil"
+	end		
+end    	
+
+local function toPointStr(value)
+    if value then
+		return string.format("cc.p(%s, %s)", tostring(value[1] or 0), tostring(value[2] or 0)) 
+	else
+		return "nil"
+	end	
+end
+
+local function resourceType(t)
+	if t == "Normal" or t == "Default" or t == "MarkedSubImage" then
+		return 0
+	else -- PlistSubImage
+		return 1
+	end
+end
 --/////////////////////////////////////////////////////////////////////////////
-function _M:parseNodeXml(root, obj, className)
---	print("parseNodeXml(className=" .. className .. ")")
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_Node(obj, name, value)
+	local opts = self.opts
+	local lays = self.lays
 	
-	local opts = {}
-	local lays = {}
+	if name == "Name" then
+		opts[name] = value
+	elseif name == "Tag" or name == "RotationSkewX" or name == "RotationSkewY" then
+		opts[name] = tonumber(value) or 0
+	elseif name == "Rotation" then
+	elseif name == "FlipX" or name == "FlipY" then
+		opts["Flipped" .. string.sub(name, 5)] = (value == "True")
+	elseif name == "ZOrder" then
+		opts["LocalZOrder"] = tonumber(value) or 0
+	elseif name == "Visible" then
+	elseif name == "VisibleForFrame" then
+		opts["Visible"] = (value == "True")
+	elseif name == "Alpha" then
+		opts["Opacity"] = tonumber(value) or 255
+	elseif name == "TouchEnable" then
+		lays[name .. "d"] = (value == "True")
+	elseif name == "UserData" then
+	elseif name == "FrameEvent" then
+	elseif name == "CallBackType" or name == "CallBackName" then
+		opts["Callback" .. string.sub(name, 9)] = value
+	elseif name == "PositionPercentXEnabled" or name == "PositionPercentYEnabled" or 
+		name == "PercentWidthEnabled" or name == "PercentHeightEnabled" or 
+		name == "StretchWidthEnable" or name == "StretchHeightEnable" then
+		lays[name] = (value == "True")
+	-- fix bad name likes PercentHeightEnable
+	elseif name == "PositionPercentXEnable" or name == "PositionPercentYEnable" or
+		name == "PercentWidthEnable" or name == "PercentHeightEnable" then
+		lays[name .. "d"] = (value == "True")
+	elseif name == "HorizontalEdge" or name == "VerticalEdge" then
+		if value == "LeftEdge" or value == "BottomEdge" then
+			lays[name] = 1
+		elseif value == "RightEdge" or value == "TopEdge" then
+			lays[name] = 2
+		elseif value == "BothEdge" then
+			lays[name] = 3
+		end	
+	elseif name == "LeftMargin" or  name == "RightMargin" or 
+		name == "TopMargin" or name == "BottomMargin" then
+		lays[name] = tonumber(value) or 0
+	elseif name == "Scale9Enable" then
+		opts["Scale9Enabled"] = (value == "True")
+	elseif name == "Scale9OriginX" or name == "Scale9OriginY" or
+		name == "Scale9Width" or name == "Scale9Height" then
+		opts[name] = tonumber(value) or 0
+	elseif name == "FontSize" then
+		opts[name] = tonumber(value) or 22
+	elseif name == "FontName" then
+		opts[name] = value
+	elseif name == "DisplayState" or name == "IsCustomSize" or name == "OutlineEnabled" or name == "ShadowEnabled" then
+		opts[name] = (value == "True")
+	elseif name == "OutlineSize" and name == "ShadowOffsetX" and name == "ShadowOffsetY" and name == "ShadowBlurRadius" then
+		opts[name] = tonumber(value) or 0
+	else
+		return false
+	end
+	
+--	print("onProperty_Node(" .. name .. ", " .. tostring(value) .. ")")
+	return true
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_ImageView(obj, name, value)
+	return self:onProperty_Node(obj, name, value)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_Button(obj, name, value)
+	local opts = self.opts
+	
+	if name == "ButtonText" then
+		opts[name] = value
+	else
+		return self:onProperty_Node(obj, name, value)
+	end
+
+	print("onProperty_Button(" .. name .. ", " .. tostring(value) .. ")")		
+	return true
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_Text(obj, name, value)
+	local opts = self.opts
+	
+	if name == "TouchScaleChangeAble" then
+		opts["TouchScaleEnabled"] = (value == "True")
+	elseif name == "LabelText" then
+		opts[name] = value
+	elseif name == "AreaWidth" or name == "AreaHeight" then
+		opts[name] = tonumber(value) or 0
+	elseif name == "HorizontalAlignmentType" then
+		if value == "HT_Left" then
+			opts[name] = 0
+		elseif value == "HT_Center" then
+			opts[name] = 1
+		elseif value == "HT_Right" then
+			opts[name] = 2
+		end	
+	elseif name == "VerticalAlignmentType" then
+		if value == "VT_Top" then
+			opts[name] = 0
+		elseif value == "VT_Center" then
+			opts[name] = 1
+		elseif value == "VT_Bottom" then
+			opts[name] = 2
+		end	
+	else	
+		return self:onProperty_Node(obj, name, value)
+	end
+
+	print("onProperty_Text(" .. name .. ", " .. tostring(value) .. ")")		
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_TextField(obj, name, value)
+	local opts = self.opts
+	
+	if name == "PlaceHolderText" or name == "LabelText" then
+		opts[name] = value
+	elseif name == "MaxLengthEnable" or name == "PasswordEnable" then
+		opts[name .. "d"] = (value == "True")
+	elseif name == "MaxLengthText" then
+		opts["MaxLength"] = tonumber(value) or 0
+	elseif name == "PasswordStyleText" then
+		opts["PasswordStyle"] = value
+	else	
+		return self:onProperty_Node(obj, name, value)
+	end	
+
+	print("onProperty_TextField(" .. name .. ", " .. tostring(value) .. ")")		
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_TextAtlas(obj, name, value)
+	local opts = self.opts
+	
+	if name == "LabelText" or name == "StartChar" then
+		opts[name] = value
+	elseif name == "CharWidth" or name == "CharHeight" then
+		opts[name] = tonumber(value) or 0
+	else	
+		return self:onProperty_Node(obj, name, value)
+	end	
+
+	print("onProperty_TextField(" .. name .. ", " .. tostring(value) .. ")")		
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_Sprite(obj, name, value)
+	return self:onProperty_Node(obj, name, value)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_Slider(obj, name, value)
+	local opts = self.opts
+	
+	if name == "PercentInfo" then
+		opts["Percent"] = tonumber(value) or 0
+	else	
+		return self:onProperty_Node(obj, name, value)
+	end	
+
+	print("onProperty_Slider(" .. name .. ", " .. tostring(value) .. ")")		
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_LoadingBar(obj, name, value)
+	local opts = self.opts
+	
+	if name == "ProgressInfo" then
+		opts["Percent"] = tonumber(value) or 0
+	elseif name == "ProgressType" then	
+		if value == "Left_To_Right" then
+			opts["Direction"] = 0
+		else
+			opts["Direction"] = 1
+		end	
+	else	
+		return self:onProperty_Node(obj, name, value)
+	end	
+
+	print("onProperty_Slider(" .. name .. ", " .. tostring(value) .. ")")		
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_Layout(obj, name, value)
+	local opts = self.opts
+	
+	if name == "ClipAble" then
+		opts["ClippingEnabled"] = (value == "True")
+	elseif name == "ComboBoxIndex" then
+		opts["BackGroundColorType"] = tonumber(value) or 0
+	elseif name == "BackColorAlpha" then
+		opts["BackGroundColorOpacity"] = tonumber(value) or 255
+	else
+		return self:onProperty_Node(obj, name, value)
+	end
+	
+	print("onProperty_Layout(" .. name .. ", " .. value .. ")")		
+	return true
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_ScrollView(obj, name, value)
+	local opts = self.opts
+
+	if name == "ScrollDirectionType" then
+		if value == "Vertical" then
+			opts["Direction"] = 1
+		elseif value == "Horizontal" then
+			opts["Direction"] = 2
+		elseif value == "Vertical_Horizontal" then
+			opts["Direction"] = 3
+		else
+			opts["Direction"] = tonumber(value) or 0
+		end
+	elseif name == "IsBounceEnabled" then
+		opts["BounceEnabled"] = (value == "True")
+	else	
+		return self:onProperty_Layout(obj, name, value)
+	end
+	
+	print("onProperty_ScrollView(" .. name .. ", " .. value .. ")")
+	return true
+end
+	
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_ListView(obj, name, value)
+	local opts = self.opts
+
+	if name == "ItemMargin" then
+		opts["ItemsMargin"] = tonumber(value) or 0
+	elseif name == "DirectionType" then
+		if value == "" then
+			opts["Direction"] = 2
+		elseif value == "Vertical" then
+			opts["Direction"] = 1
+		else
+			opts["Direction"] = tonumber(value) or 0
+		end
+	elseif name == "VerticalType"  then
+		if value == "" then
+			opts[name] = 3
+		elseif value == "Align_Bottom" then
+			opts[name] = 4
+		elseif value == "Align_VerticalCenter" then
+			opts[name] = 5
+		else
+			opts[name] = tonumber(value) or 3
+		end	
+	elseif name == "HorizontalType" then
+		if value == "" then
+			opts[name] = 0
+		elseif value == "Align_Right" then
+			opts[name] = 1
+		elseif value == "Align_HorizontalCenter" then
+			opts[name] = 2
+		else
+			opts[name] = tonumber(value) or 0
+		end	
+	else
+		return self:onProperty_ScrollView(obj, name, value)
+	end
+	
+	print("onProperty_ListView(" .. name .. ", " .. value .. ")")	
+	return true	
+end
+	
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_PageView(obj, name, value)
+	return self:onProperty_Layout(obj, name, value)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:readNodeProperties(root, obj, className)
+	print("readNodeProperties(" .. className .. ")")
+
+	local opts = self.opts
+	local lays = self.lays
+	
+	local onProperty = self["onProperty_" .. className] or self.onProperty_Node
 	
 	for _, p in pairs(root:properties()) do
 		local name = p.name
 		local value = p.value
 		
-		if name == "Name" then
-			opts[name] = value
-		elseif name == "Tag" or name == "RotationSkewX" or name == "RotationSkewY" then
-			opts[name] = tonumber(value) or 0
-		elseif name == "Rotation" then
-		elseif name == "FlipX" or name == "FlipY" then
-			opts["Flipped" .. string.sub(name, 5)] = (value == "True")
-		elseif name == "ZOrder" then
-			opts["LocalZOrder"] = tonumber(value) or 0
-		elseif name == "Visible" then
-		elseif name == "VisibleForFrame" then
-			opts["Visible"] = (value == "True")
-		elseif name == "Alpha" then
-			opts["Opacity"] = tonumber(value) or 255
-		elseif name == "TouchEnable" then
-			lays[name .. "d"] = (value == "True")
-		elseif name == "UserData" then
-		elseif name == "FrameEvent" then
-		elseif name == "CallBackType" or name == "CallBackName" then
-			opts["Callback" .. string.sub(name, 9)] = value
-		elseif name == "PositionPercentXEnabled" or name == "PositionPercentYEnabled" or 
-			name == "PercentWidthEnabled" or name == "PercentHeightEnabled" or 
-			name == "StretchWidthEnable" or name == "StretchHeightEnable" then
-			lays[name] = (value == "True")
-		-- fix bad name likes PercentHeightEnable
-		elseif name == "PositionPercentXEnable" or name == "PositionPercentYEnable" or
-			name == "PercentWidthEnable" or name == "PercentHeightEnable" then
-			lays[name .. "d"] = (value == "True")
-		elseif name == "HorizontalEdge" or name == "VerticalEdge" then
-			if value == "LeftEdge" or value == "BottomEdge" then
-				lays[name] = 1
-			elseif value == "RightEdge" or value == "TopEdge" then
-				lays[name] = 2
-			elseif value == "BothEdge" then
-				lays[name] = 3
-			end	
-		elseif name == "LeftMargin" or  name == "RightMargin" or 
-			name == "TopMargin" or name == "BottomMargin" then
-			lays[name] = tonumber(value) or 0
-		elseif name == "ClipAble" then
-			opts["ClippingEnabled"] = (value == "True")
-		elseif name == "ComboBoxIndex" then
-			if className == "Layout" then
-				opts["BackGroundColorType"] = tonumber(value)
+		if not onProperty(self, obj, name, value) then
+			if name ~= "IconVisible" and name ~= "ctype" and name ~= "ActionTag" and name ~= "ColorAngle" and
+				name ~= "LeftEage" and name ~= "TopEage" and name ~= "RightEage" and name ~= "BottomEage" then
+				print("@@ Nothing to do: readNodeProperties(" .. name .. ")")
 			end
-		elseif name == "BackColorAlpha" then
-			if className == "Layout" then
-				opts["BackGroundColorOpacity"] = tonumber(value)
-			end
-		elseif name == "Scale9Enable" then
-		elseif name == "Scale9OriginX" then
-		elseif name == "Scale9OriginY" then
-		elseif name == "Scale9Width" then
-		elseif name == "Scale9Height" then
-		elseif name == "LabelText" then
-			opts["String"] = value
-		elseif name == "FontSize" then
-			opts["FontSize"] = tonumber(value)
 		end
 	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_Node(obj, name, c)
+	local opts = self.opts
+	local lays = self.lays
 	
+	if name == "Position" then
+		opts[name] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
+	elseif name == "Scale" then
+		opts[name] = { tonumber(c["@ScaleX"]) or 1, tonumber(c["@ScaleY"]) or 1 }
+	elseif name == "AnchorPoint" then
+		opts[name] = { tonumber(c["@ScaleX"]) or 0, tonumber(c["@ScaleY"]) or 0 }
+	elseif name == "CColor" then
+		opts["Color"] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
+			tonumber(c["@B"]) or 0, tonumber(c["@A"])}
+	elseif name == "Size" or name == "ContentSize" then
+		opts[name] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
+	elseif name == "PrePosition" then
+		lays["PositionPercentX"] = tonumber(c["@X"]) or 0
+		lays["PositionPercentY"] = tonumber(c["@Y"]) or 0
+	elseif name == "PreSize" then
+		lays["PercentWidth"] = tonumber(c["@X"]) or 0
+		lays["PercentHeight"] = tonumber(c["@Y"]) or 0
+	elseif name == "FileData" then
+		local p = c["@Plist"] or ""
+		if #p > 0 then self:writPlist(p) end
+		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+	elseif name == "OutlineColor" or name == "ShadowColor" then
+		opts[name] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
+			tonumber(c["@B"]) or 0, tonumber(c["@A"]) or 0 }
+	elseif name == "FontResource" then
+	else
+		return false
+	end
+	
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_ImageView(obj, name, c)
+	-- nothing to do
+	return self:onChildren_Node(obj, name, c)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_Button(obj, name, c)
+	local opts = self.opts
+
+	if name == "TextColor" then
+		opts[name] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
+			tonumber(c["@B"]) or 0 }
+	elseif name == "NormalFileData" or name == "PressedFileData" or name == "DisabledFileData" then		
+		local p = c["@Plist"] or ""
+		if #p > 0 then self:writPlist(p) end
+		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+	else	
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+	print("onChildren_Button(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_Text(obj, name, c)
+	-- nothing to do
+	return self:onChildren_Node(obj, name, c)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_TextField(obj, name, c)
+	-- nothing to do
+	return self:onChildren_Node(obj, name, c)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_TextAtlas(obj, name, c)
+	local opts = self.opts
+	
+	if name == "LabelAtlasFileImage_CNB" then
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+	print("onChildren_TextAtlas(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_Sprite(obj, name, c)
+	local opts = self.opts
+	
+	if name == "BlendFunc" then
+		opts[name] = { tonumber(c["@Src"]) or 0, tonumber(c["@Dst"]) or 0 }
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+	print("onChildren_Sprite(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_Slider(obj, name, c)
+	local opts = self.opts
+	
+	if name == "BackGroundData"  or name == "ProgressBarData" or 
+		name == "BallNormalData" or name == "BallPressedData" or name == "BallDisabledData" then
+		local p = c["@Plist"] or ""
+		if #p > 0 then self:writPlist(p) end
+		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+	print("onChildren_Slider(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_LoadingBar(obj, name, c)
+	local opts = self.opts
+	
+	if name == "ImageFileData" then
+		local p = c["@Plist"] or ""
+		if #p > 0 then self:writPlist(p) end
+		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+	print("onChildren_LoadingBar(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_Layout(obj, name, c)
+	local opts = self.opts
+	
+	if name == "SingleColor" or name == "FirstColor" or name == "EndColor" then
+		opts[name] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
+			tonumber(c["@B"]) or 0, tonumber(c["@A"]) }
+	elseif name == "ColorVector" then
+		opts[name] = { tonumber(c["@ScaleX"]) or 1, tonumber(c["@ScaleY"]) or 1 }
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+	return true	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_ScrollView(obj, name, c)
+	local opts = self.opts
+	
+	if name == "InnerNodeSize" then
+		opts["InnerContainerSize"] = { tonumber(c["@Width"]) or 0, tonumber(c["@Height"]) or 0 }
+	else
+		return self:onChildren_Layout(obj, name, c)
+	end	
+
+	return true
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_ListView(obj, name, c)
+	-- nothing to do
+	return self:onChildren_ScrollView(obj, name, c)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onChildren_PageView(obj, name, c)
+	-- nothing to do
+	return self:onChildren_Layout(obj, name, c)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:readNodeChildren(root, obj, className)
+	local onChildren = self["onChildren_" .. className] or self.onChildren_Node
+
 	for _, c in pairs(root:children()) do
 		local name = c:name()
-		
-		if name == "Position" then
-			opts[name] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
-		elseif name == "Scale" then
-			opts[name] = { tonumber(c["@ScaleX"]) or 1, tonumber(c["@ScaleY"]) or 1 }
-		elseif name == "AnchorPoint" then
-			opts[name] = { tonumber(c["@ScaleX"]) or 0, tonumber(c["@ScaleY"]) or 0 }
-		elseif name == "CColor" then
-			opts["Color"] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
-				tonumber(c["@B"]) or 0, tonumber(c["@A"])}
-		elseif name == "Size" then
-			if obj and type(obj.getContentSize) == "function" then
-				opts["ContentSize"] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
+				
+		if not onChildren(self, obj, name, c) then
+			if name ~= "Children" then
+				print("@@ Nothing to do: readNodeChildren(" .. name .. ")")
 			end	
-			if obj and not obj.getContentSize and type(obj.getSize) == "function" then
-				opts["Size"] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
-			end	
-		elseif name == "PrePosition" then
-			lays["PositionPercentX"] = tonumber(c["@X"]) or 0
-			lays["PositionPercentY"] = tonumber(c["@Y"]) or 0
-		elseif name == "PreSize" then
-			lays["PercentWidth"] = tonumber(c["@X"]) or 0
-			lays["PercentHeight"] = tonumber(c["@Y"]) or 0
-		elseif name == "FileData" or name == "NormalFileData" or 
-			name == "PressedFileData" or name == "DisabledFileData" then
-			local f = c["@Path"] or ""
-			local t = c["@Type"] or ""
-			local p = c["@Plist"] or ""
-			if t == "Normal" or t == "Default" or t == "MarkedSubImage" then
-				t = 0
-			else
-				t = 1
-				if #p > 0 then self:writPlist(p) end
-			end
-
-			opts[name] = { f, t, p }
-        elseif name == "SingleColor" or name == "FirstColor" or name == "EndColor" or name == "TextColor" then
-            opts[name] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
-            	tonumber(c["@B"]) or 0, tonumber(c["@A"]) }
-		elseif name == "ColorVector" then
 		end
 	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_Node(obj)
+	local opts = self.opts
 	
-	local tblVal, tblLay, str = {}, {}, ""
+	local tblVal, tblTmp, str = {}, {}, ""
 	
 	if opts.CallbackType and opts.CallbackName and 
 		(opts.CallbackType == "Click" or opts.CallbackType == "Touch") then
@@ -265,168 +681,277 @@ function _M:parseNodeXml(root, obj, className)
 	end
 	opts.CallbackType = nil
 	opts.CallbackName = nil
-	
-	for name, value in pairs(opts) do
---		print("opts name=" .. tostring(name) .. " value=" .. tostring(value))
---		if type(obj["set" .. name]) == "function" then
-            str = ""
-            if name == "Name" or name == "Tag" or name == "LocalZOrder" or name == "Opacity" then
-            	if obj["get" .. name](obj) == value then
-                	opts[name] = nil    
-                end
-            elseif name == "Position" or name == "Scale" then
-                if obj["get" .. name .. "X"](obj) ~= value[1] or 
-                	obj["get" .. name .. "Y"](obj) ~= value[2] then
-                	if name == "Scale" then
-                		str = string.format("obj:set%s(%s, %s)\n", name, tostring(value[1]), tostring(value[2]))
-					end	
-                else
-                	opts[name] = nil    
-                end
-            elseif name == "AnchorPoint" then
-                if isPointEqual(obj["get" .. name](obj), value) then
-                	opts[name] = nil    
-                end
-            elseif name == "ContentSize" or name == "Size" then
-                if isSizeEqual(obj["get" .. name](obj), value) then
-                	opts[name] = nil    
-                end
-			elseif name == "Color" then               
-                if isColorEqual(obj:getColor(), value) then
-                	opts[name] = nil    
-                end
-			elseif name == "FileData" or name == "NormalFileData" or 
-				name == "PressedFileData" or name == "DisabledFileData" then
-				if name == "FileData" then
-					if className == "ImageView"  then
-						str = string.format("obj:loadTexture(\"%s\", %s)\n", tostring(value[1]), tostring(value[2]))
-					elseif className == "Layout" then
-						str = string.format("obj:setBackGroundImage(\"%s\", %s)\n", tostring(value[1]), tostring(value[2]))
-	                end
-	            elseif className == "Button"  then
-	                local s = string.sub(name, 1, string.find(name, "FileData") - 1)
-					str = string.format("obj:loadTexture%s(\"%s\", %s)\n", s, tostring(value[1]), tostring(value[2]))
-				end
-			elseif name == "SingleColor" or name == "FirstColor" or name == "EndColor" or name == "TextColor" then	 
-				local clr
-				if value[4] then
-					clr = string.format("cc.c4b(%s, %s, %s, %s)", tostring(value[1]), tostring(value[2]), tostring(value[3]), tostring(value[4]))
-				else
-					clr = string.format("cc.c3b(%s, %s, %s)", tostring(value[1]), tostring(value[2]), tostring(value[3]))
-				end	
-	            if className == "Layout" then
-	                if name == "SingleColor" and not isColorEqual(obj:getBackGroundColor(), value) then
-	                	str = "obj:setBackGroundColor(" .. clr .. ")\n"
-					end
-				elseif className == "Button" then	
-	                if name == "TextColor" and not isColorEqual(obj:getTitleColor(), value) then
-						str = "obj:setTitleColor(" .. clr .. ")\n"
-					end
-				end
-            elseif (type(obj["get" .. name]) == "function" and obj["get" .. name](obj) ~= value) or
-				(type(obj["is" .. name]) == "function" and obj["is" .. name](obj) ~= value) then
-				if type(value) == "number" or type(value) == "boolean" then
-					str = "obj:set" .. name .. "(" .. tostring(value) .. ")\n"
-				elseif type(value) == "string" then
-					str = "obj:set" .. name .. "([[" .. tostring(value) .. "]])\n"
-				end
-			else
-				opts[name] = nil	
-			end
-            
-            if #str > 0 then
-                table.insert(tblVal, 	"	" .. str)
-            end
---		end
-	end
-	
-    local lay = obj:getComponent("__ui_layout") or ccui.LayoutComponent:create()
-    local flg = false
-
-    for name, value in pairs(lays) do
-        if ((type(lay["get" .. name]) == "function" and lay["get" .. name](lay) ~= value) or
-            (type(lay["is" .. name]) == "function" and lay["is" .. name](lay) ~= value)) then
---			if type(value) == "number" or type(value) == "boolean" then
---                str = "lay:set" .. name .. "(" .. tostring(value) .. ")\n"
---            elseif type(value) == "string" then
---                str = "lay:set" .. name .. "(\"" .. tostring(value) .. "\")\n"
---            end
---
---            table.insert(tblLay, 	"	" .. str)
-		else
-			lays[name] = nil
-        end
-    end
-
-    local size, position, ancpoint, color = nil, nil, nil, nil
-    if opts.ContentSize then
-    	size = string.format("cc.size(%s, %s)", tostring(opts.ContentSize[1] or 0), 
-    		tostring(opts.ContentSize[2] or 0)) 
-    elseif opts.Size then	
-    	size = string.format("cc.size(%s, %s)", tostring(opts.Size[1] or 0), 
-    		tostring(opts.Size[2] or 0)) 
-    end    	
-    if opts.Position then
-    	position = string.format("cc.p(%s, %s)", tostring(opts.Position[1] or 0), 
-    		tostring(opts.Position[2] or 0)) 
-    end    	
-    if opts.AnchorPoint then
-    	ancpoint = string.format("cc.p(%s, %s)", tostring(opts.AnchorPoint[1] or 0), 
-    		tostring(opts.AnchorPoint[2] or 0)) 
-    end    	
-    if opts.Color then
-    	if opts.Color[4] then
-			color = string.format("cc.c4b(%d, %d, %d, %d)", opts.Color[1] or 0, 
-				opts.Color[2] or 0, opts.Color[3] or 0, opts.Color[4] or 0) 
-    	else
-			color = string.format("cc.c3b(%d, %d, %d)", opts.Color[1] or 0, 
-				opts.Color[2] or 0, opts.Color[3] or 0) 
-    	end	
-    end    	
-	self:write(string.format("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s)\n",
-		tostring(opts.Name), tostring(opts.Tag), tostring(size), tostring(position), tostring(ancpoint),
-		tostring(color), tostring(opts.Opacity), tostring(opts.LocalZOrder)))
 		
+	for name, value in pairs(opts) do
+		str = ""
+		if name == "Name" or name == "Tag" or name == "LocalZOrder" or name == "Opacity"  then
+			if obj["get" .. name](obj) ~= value then
+				tblTmp[name] = value
+			end
+		elseif name == "RotationSkewX" or name == "RotationSkewY" then
+			if obj["get" .. name](obj) ~= value then
+				str = string.format("obj:set%s(%s)\n", name, tostring(value))
+			end
+		elseif name == "FlippedX" or name == "FlippedY" or name == "Visible" or name == "TouchEnabled" then
+			if obj["is" .. name](obj) ~= value then
+				str = string.format("obj:set%s(%s)\n", name, tostring(value))
+			end
+		elseif name == "Position" or name == "Scale" then
+			if obj["get" .. name .. "X"](obj) ~= value[1] or 
+				obj["get" .. name .. "Y"](obj) ~= value[2] then
+				if name == "Scale" then
+					str = string.format("obj:set%s(%s, %s)\n", name, tostring(value[1]), tostring(value[2]))
+				else
+					tblTmp[name] = value
+				end	
+			end
+		elseif name == "AnchorPoint" then
+			if not isPointEqual(obj["get" .. name](obj), value) then
+				tblTmp[name] = value
+			end
+		elseif name == "ContentSize" or name == "Size" then
+			-- getSize is deprecated, use getContentSize
+			if type(obj["getContentSize"]) == "function" and not isSizeEqual(obj["getContentSize"](obj), value) then
+				tblTmp[name] = value
+			end
+		elseif name == "Color" then               
+			if not isColorEqual(obj:getColor(), value) then
+				tblTmp[name] = value
+			end
+		end
+		
+		if #str > 0 then
+			table.insert(tblVal, 	"	" .. str)
+		end
+	end
+	    	
+	self:write(string.format("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s)\n",
+		tostring(tblTmp.Name), tostring(tblTmp.Tag), toSizeStr(tblTmp.ContentSize or tblTmp.Size), toPointStr(tblTmp.Position), toPointStr(tblTmp.AnchorPoint),
+		toColorStr(tblTmp.Color), tostring(tblTmp.Opacity), tostring(tblTmp.LocalZOrder)))
+
     if #tblVal > 0 then
 	    self:write(table.concat(tblVal))
 	end
-    		
---    if #tblLay > 0 then
-        --self:write(table.concat(tblLay))
-        local margins, sizes, positions, stretchs, edges = "", "", "", "", ""
-        if nil ~= lays.LeftMargin or nil ~= lays.TopMargin or 
-        	nil ~= lays.RightMargin or nil ~= lays.BottomMargin then
-			margins = string.format(".setMargin(%s, %s, %s, %s)",
-				tostring(lays.LeftMargin), tostring(lays.TopMargin), 
-				tostring(lays.RightMargin), tostring(lays.BottomMargin))
-		end	
-        if nil ~= lays.PercentWidth or nil ~= lays.PercentHeight or 
-        	nil ~= lays.PercentWidthEnabled or nil ~= lays.PercentHeightEnabled then
-			sizes = string.format(".setSize(%s, %s, %s, %s)",
-				tostring(lays.PercentWidth), tostring(lays.PercentHeight), 
-				tostring(lays.PercentWidthEnabled), tostring(lays.PercentHeightEnabled))
-		end		
-        if nil ~= lays.PositionPercentX or nil ~= lays.PositionPercentY 
-        	or nil ~= lays.PositionPercentXEnabled or nil ~= lays.PositionPercentYEnabled then
-			positions = string.format(".setPosition(%s, %s, %s, %s)",
-				tostring(lays.PositionPercentX), tostring(lays.PositionPercentY), 
-				tostring(lays.PositionPercentXEnabled), tostring(lays.PositionPercentYEnabled))
-		end		
-        if nil ~= lays.StretchWidthEnable or nil ~= lays.StretchHeightEnable then
-			stretchs = string.format(".setStretch(%s, %s)",
-				tostring(lays.StretchWidthEnable), tostring(lays.StretchHeightEnable))
-		end		
-        if nil ~= lays.HorizontalEdge or nil ~= lays.VerticalEdge then
-			edges = string.format(".setEdge(%s, %s)",
-				tostring(lays.HorizontalEdge), tostring(lays.VerticalEdge))
-		end		
-		
-		if #margins > 0 or #sizes > 0 or #positions > 0 or #stretchs > 0 or #edges > 0 then
-			self:write(string.format("	_L.bind(obj)%s%s%s%s%s\n", margins, sizes, positions, stretchs, edges))
-		end	
---    end
+end
 
-	return opts.Name or ""
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_ImageView(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+
+	if opts.FileData then
+		self:write(string.format("	obj:loadTexture(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2])))
+	end	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_Button(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+
+	if opts.NormalFileData then
+		self:write(string.format("	obj:loadTextureNormal(\"%s\", %s)\n", tostring(opts.NormalFileData[1]), tostring(opts.NormalFileData[2])))
+	end	
+
+	if opts.PressedFileData then
+		self:write(string.format("	obj:loadTexturePressed(\"%s\", %s)\n", tostring(opts.PressedFileData[1]), tostring(opts.PressedFileData[2])))
+	end	
+
+	if opts.DisabledFileData then
+		self:write(string.format("	obj:loadTextureDisabled(\"%s\", %s)\n", tostring(opts.DisabledFileData[1]), tostring(opts.DisabledFileData[2])))
+	end	
+	
+	if opts.FontResource then
+	end
+	
+	if opts.TextColor and not isColorEqual(obj:getTitleColor(), opts.TextColor) then
+		self:write("	obj:setTitleColor(" .. toColorStr(opts.TextColor) .. ")\n")
+	end
+	
+	if opts.OutlineColor then
+	end
+	
+	if opts.ShadowColor then
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_Text(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+	
+	if opts.LabelText then
+		self:write(string.format("	obj:setString([[%s]])\n", tostring(opts.LabelText)))
+	end
+	
+	if opts.FontSize then
+		self:write(string.format("	obj:setFontSize(%s)\n", tostring(opts.FontSize)))
+	end
+	
+	if opts.FontName then
+		self:write(string.format("	obj:FontName(\"%s\")\n", tostring(opts.FontName)))
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_TextField(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_TextAtlas(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_Sprite(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_Slider(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_LoadingBar(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_Layout(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+
+	if opts.FileData then
+		self:write(string.format("	obj:setBackGroundImage(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2])))
+	end
+			
+	if opts.SingleColor and not isColorEqual(obj:getBackGroundColor(), opts.SingleColor) then
+		self:write("	obj:setBackGroundColor(" .. toColorStr(opts.SingleColor) .. ")\n")
+	end
+	
+	if opts.FirstColor then
+	end
+	
+	if opts.EndColor then
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_ScrollView(obj)
+	self:handleOpts_Layout(obj)
+
+	local opts = self.opts
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_ListView(obj)
+	self:handleOpts_Layout(obj)
+
+	local opts = self.opts
+	
+	if opts.Direction and type(obj.getDirection) == "function" then
+		if opts.Direction ~= obj:getDirection() then
+			table.insert(tblVal, string.format("	obj:setDirection(%d)\n", opts.Direction))
+		end
+		if opts.Direction == 2 and opts.VerticalType then
+			table.insert(tblVal, string.format("	obj:setGravity(%d)\n", opts.VerticalType))
+		elseif opts.Direction == 1 and opts.HorizontalType then
+			table.insert(tblVal, string.format("	obj:setGravity(%d)\n", opts.HorizontalType))
+		end
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleOpts_PageView(obj)
+	self:handleOpts_Layout(obj)
+
+	local opts = self.opts
+	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleNodeOpts(root, obj, className)
+	local handleOpts = self["handleOpts_" .. className] or self.handleOpts_Node
+	
+	handleOpts(self, obj)
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:handleNodeLays(root, obj, className)
+	local lays = self.lays
+	
+    local lay = obj:getComponent("__ui_layout") or ccui.LayoutComponent:create()
+
+    for name, value in pairs(lays) do
+        if ((type(lay["get" .. name]) == "function" and lay["get" .. name](lay) == value) or
+            (type(lay["is" .. name]) == "function" and lay["is" .. name](lay) == value)) then
+			lays[name] = nil
+        end
+    end
+    		
+	local margins, sizes, positions, stretchs, edges = "", "", "", "", ""
+	if nil ~= lays.LeftMargin or nil ~= lays.TopMargin or 
+		nil ~= lays.RightMargin or nil ~= lays.BottomMargin then
+		margins = string.format(".setMargin(%s, %s, %s, %s)",
+			tostring(lays.LeftMargin), tostring(lays.TopMargin), 
+			tostring(lays.RightMargin), tostring(lays.BottomMargin))
+	end	
+	if nil ~= lays.PercentWidth or nil ~= lays.PercentHeight or 
+		nil ~= lays.PercentWidthEnabled or nil ~= lays.PercentHeightEnabled then
+		sizes = string.format(".setSize(%s, %s, %s, %s)",
+			tostring(lays.PercentWidth), tostring(lays.PercentHeight), 
+			tostring(lays.PercentWidthEnabled), tostring(lays.PercentHeightEnabled))
+	end		
+	if nil ~= lays.PositionPercentX or nil ~= lays.PositionPercentY 
+		or nil ~= lays.PositionPercentXEnabled or nil ~= lays.PositionPercentYEnabled then
+		positions = string.format(".setPosition(%s, %s, %s, %s)",
+			tostring(lays.PositionPercentX), tostring(lays.PositionPercentY), 
+			tostring(lays.PositionPercentXEnabled), tostring(lays.PositionPercentYEnabled))
+	end		
+	if nil ~= lays.StretchWidthEnable or nil ~= lays.StretchHeightEnable then
+		stretchs = string.format(".setStretch(%s, %s)",
+			tostring(lays.StretchWidthEnable), tostring(lays.StretchHeightEnable))
+	end		
+	if nil ~= lays.HorizontalEdge or nil ~= lays.VerticalEdge then
+		edges = string.format(".setEdge(%s, %s)",
+			tostring(lays.HorizontalEdge), tostring(lays.VerticalEdge))
+	end		
+	
+	if #margins > 0 or #sizes > 0 or #positions > 0 or #stretchs > 0 or #edges > 0 then
+		self:write(string.format("	_L.bind(obj)%s%s%s%s%s\n", margins, sizes, positions, stretchs, edges))
+	end	
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:parseNodeXml(root, obj, className)
+--	print("parseNodeXml(className=" .. className .. ")")
+
+	self.opts = {}
+	self.lays = {}
+	
+	self:readNodeProperties(root, obj, className)
+	self:readNodeChildren(root, obj, className)
+
+	self:handleNodeOpts(root, obj, className)
+	self:handleNodeLays(root, obj, className)
+
+	return self.opts.Name or ""
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -535,7 +1060,7 @@ local function objScriptOf(className)
 ]]
     end
     
-    return obj, script
+    return obj, script, className
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -544,7 +1069,7 @@ _createNodeTree = function(self, root, classType, rootName)
 	local className = string.sub(classType, 1, string.find(classType, "ObjectData") - 1)
 --	print("_createNodeTree(classType=" .. classType .. ", className=" .. className .. ")")
 
-	local obj, script = objScriptOf(className)
+	local obj, script, className = objScriptOf(className)
 	if not obj or not script then return end
 
 	self:write(script)
