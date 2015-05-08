@@ -43,11 +43,12 @@ function _L.setBgImage(obj, imgName, imgType, scale9En, capInsets)
 	return _L
 end
 
-function _L.setBgColor(obj, bgType, bgOpacity, bgColor, startColor, endColor)
+function _L.setBgColor(obj, bgType, bgOpacity, bgColor, startColor, endColor, colorVec)
 	if nil ~= bgType then obj:setBackGroundColorType(bgType) end
 	if nil ~= bgOpacity then obj:setBackGroundColorOpacity(bgOpacity) end
 	if nil ~= startColor and nil ~= endColor then obj:setBackGroundColor(startColor, endColor) end
 	if nil ~= bgColor then obj:setBackGroundColor(bgColor) end
+	if nil ~= colorVec then obj:setBackGroundColorVector(colorVec) end
 	return _L
 end
 
@@ -309,9 +310,13 @@ function _M:onChildren_Node(obj, name, c)
 		lays["PercentWidth"] = tonumber(c["@X"]) or 0
 		lays["PercentHeight"] = tonumber(c["@Y"]) or 0
 	elseif name == "FileData" then
-		local p = c["@Plist"] or ""
-		if #p > 0 then self:writPlist(p) end
-		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+		local f, t, p = c["@Path"] or "", resourceType(c["@Type"]), c["@Plist"] or ""
+		if #p > 0 then 
+			self:addTexture(t, p) 
+		else	
+			self:addTexture(t, f) 
+		end
+		opts[name] = { f, t, p }
 	elseif name == "OutlineColor" or name == "ShadowColor" then
 		opts[name] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
 			tonumber(c["@B"]) or 0, tonumber(c["@A"]) or 0 }
@@ -383,12 +388,16 @@ function _M:handleOpts_Node(obj)
 		end
 	end
 	    	
-	self:write(string.format("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s)\n",
+	self:writef("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s)\n",
 		tostring(tblTmp.Name), tostring(tblTmp.Tag), formatSize(tblTmp.Size), formatPoint(tblTmp.Position), formatPoint(tblTmp.AnchorPoint),
-		formatColor(tblTmp.Color), tostring(tblTmp.Opacity), tostring(tblTmp.LocalZOrder)))
+		formatColor(tblTmp.Color), tostring(tblTmp.Opacity), tostring(tblTmp.LocalZOrder))
 
     if #tblVal > 0 then
 	    self:write(table.concat(tblVal))
+	end
+	
+	if opts.IsCustomSize then
+		self:write("	obj:ignoreContentAdaptWithSize(false)\n")
 	end
 end
 
@@ -409,7 +418,7 @@ function _M:handleOpts_ImageView(obj)
 	local opts = self.opts
 
 	if opts.FileData then
-		self:write(string.format("	obj:loadTexture(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2])))
+		self:writef("	obj:loadTexture(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]))
 	end	
 
 	if opts.Scale9Enabled then
@@ -444,9 +453,13 @@ function _M:onChildren_Button(obj, name, c)
 		opts[name] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
 			tonumber(c["@B"]) or 0 }
 	elseif name == "NormalFileData" or name == "PressedFileData" or name == "DisabledFileData" then		
-		local p = c["@Plist"] or ""
-		if #p > 0 then self:writPlist(p) end
-		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+		local f, t, p = c["@Path"] or "", resourceType(c["@Type"]), c["@Plist"] or ""
+		if #p > 0 then 
+			self:addTexture(t, p) 
+		else	
+			self:addTexture(t, f) 
+		end
+		opts[name] = { f, t, p }
 	else	
 		return self:onChildren_Node(obj, name, c)
 	end
@@ -461,32 +474,37 @@ function _M:handleOpts_Button(obj)
 	local opts = self.opts
 
 	if opts.NormalFileData then
-		self:write(string.format("	obj:loadTextureNormal(\"%s\", %s)\n", tostring(opts.NormalFileData[1]), tostring(opts.NormalFileData[2])))
+		self:writef("	obj:loadTextureNormal(\"%s\", %s)\n", tostring(opts.NormalFileData[1]), tostring(opts.NormalFileData[2]))
 	end	
 
 	if opts.PressedFileData then
-		self:write(string.format("	obj:loadTexturePressed(\"%s\", %s)\n", tostring(opts.PressedFileData[1]), tostring(opts.PressedFileData[2])))
+		self:writef("	obj:loadTexturePressed(\"%s\", %s)\n", tostring(opts.PressedFileData[1]), tostring(opts.PressedFileData[2]))
 	end	
 
 	if opts.DisabledFileData then
-		self:write(string.format("	obj:loadTextureDisabled(\"%s\", %s)\n", tostring(opts.DisabledFileData[1]), tostring(opts.DisabledFileData[2])))
+		self:writef("	obj:loadTextureDisabled(\"%s\", %s)\n", tostring(opts.DisabledFileData[1]), tostring(opts.DisabledFileData[2]))
 	end	
 	
 	if opts.FontResource then
 	end
 	
 	if nil ~= opts.DisplayState then
-		self:write("	obj:setBright(" .. tostring(opts.DisplayState) .. ")\n")
-		self:write("	obj:setEnabled(" .. tostring(opts.DisplayState) .. ")\n")
-	end	
+		if obj:isBright() ~= opts.DisplayState then
+			self:writef("	obj:setBright(%s)\n", tostring(opts.DisplayState))
+		end
+		
+		if obj:isEnabled() ~= opts.DisplayState then
+			self:writef("	obj:setEnabled(%s)\n", tostring(opts.DisplayState))
+		end
+	end
 	
 	if opts.OutlineEnabled and opts.OutlineColor and opts.OutlineSize  then
-		self:write(string.format("	obj:enableOutline(%s, %s)\n", formatColor(opts.OutlineColor), tostring(opts.OutlineSize or 0)))
+		self:writef("	obj:enableOutline(%s, %s)\n", formatColor(opts.OutlineColor), tostring(opts.OutlineSize or 0))
 	end
 	
 	if opts.ShadowEnabled and opts.ShadowColor and opts.ShadowOffsetX and opts.ShadowOffsetY and opts.ShadowBlurRadius then
-		self:write(string.format("	obj:enableShadow(%s, cc.size(%d, %d), %s)\n", 
-			formatColor(opts.ShadowColor), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius)))
+		self:writef("	obj:enableShadow(%s, cc.size(%d, %d), %s)\n", 
+			formatColor(opts.ShadowColor), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius))
 	end
 
 	if opts.Scale9Enabled then
@@ -527,19 +545,19 @@ function _M:onProperty_Text(obj, name, value)
 		opts[name] = tonumber(value) or 0
 	elseif name == "HorizontalAlignmentType" then
 		if value == "HT_Left" then
-			opts[name] = 0
+			opts["TextHorizontalAlignment"] = 0
 		elseif value == "HT_Center" then
-			opts[name] = 1
+			opts["TextHorizontalAlignment"] = 1
 		elseif value == "HT_Right" then
-			opts[name] = 2
+			opts["TextHorizontalAlignment"] = 2
 		end	
 	elseif name == "VerticalAlignmentType" then
 		if value == "VT_Top" then
-			opts[name] = 0
+			opts["TextVerticalAlignment"] = 0
 		elseif value == "VT_Center" then
-			opts[name] = 1
+			opts["TextVerticalAlignment"] = 1
 		elseif value == "VT_Bottom" then
-			opts[name] = 2
+			opts["TextVerticalAlignment"] = 2
 		end	
 	else	
 		return self:onProperty_Node(obj, name, value)
@@ -560,20 +578,52 @@ function _M:handleOpts_Text(obj)
 	local opts = self.opts
 	
 	if opts.LabelText then
-		self:write(string.format("	obj:setString(%s)\n", formatString(opts.LabelText)))
+		self:writef("	obj:setString(%s)\n", formatString(opts.LabelText))
 	end
 	
 	if opts.FontSize and obj:getFontSize() ~= opts.FontSize then
-		self:write(string.format("	obj:setFontSize(%s)\n", tostring(opts.FontSize)))
+		self:writef("	obj:setFontSize(%s)\n", tostring(opts.FontSize))
 	end
 	
 	if opts.FontName and obj:getFontName() ~= opts.FontName then
-		self:write(string.format("	obj:FontName(\"%s\")\n", tostring(opts.FontName)))
+		self:writef("	obj:FontName(\"%s\")\n", tostring(opts.FontName))
+	end
+	
+	if nil ~= opts.TouchScaleChangeAble and obj:isTouchScaleChangeAble() ~= opts.TouchScaleChangeAble then
+		self:writef("	obj:setTouchScaleChangeAble(%s)\n", tostring(opts.TouchScaleChangeAble))
+	end
+	
+	if (nil ~= opts.AreaWidth or nil ~= opts.AreaHeight) and 
+		obj:getTextAreaSize().width ~= (opts.opts.AreaWidth or 0) and
+		obj:getTextAreaSize().height ~= (opts.opts.AreaHeight or 0) then
+		self:writef("	obj:setTextAreaSize(cc.size(%s))\n", tostring(opts.AreaWidth or 0), tostring(opts.AreaHeight or 0))
+	end	
+	
+	if opts.TextHorizontalAlignment and obj:getHorizontalAlignmentType() ~= opts.TextHorizontalAlignment then
+		self:writef("	obj:setTextHorizontalAlignment(%s)\n", tostring(opts.TextHorizontalAlignment))
+	end
+	
+	if opts.TextVerticalAlignment and obj:getTextVerticalAlignment() ~= opts.TextVerticalAlignment then
+		self:writef("	obj:setTextVerticalAlignment(%s)\n", tostring(opts.TextVerticalAlignment))
+	end
+
+	if opts.OutlineEnabled and opts.OutlineColor and opts.OutlineSize  then
+		self:writef("	obj:enableOutline(%s, %s)\n", formatColor(opts.OutlineColor), tostring(opts.OutlineSize or 0))
+	end
+	
+	if opts.ShadowEnabled and opts.ShadowColor and opts.ShadowOffsetX and opts.ShadowOffsetY and opts.ShadowBlurRadius then
+		self:writef("	obj:enableShadow(%s, cc.size(%d, %d), %s)\n", 
+			formatColor(opts.ShadowColor), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius))
+	end
+	
+	if opts.Color and not isColorEqual(obj:getTextColor(), opts.Color) then
+		self:writef("	obj:setTextColor(%s)\n", formatColor(opts.Color))
 	end
 end
 
 --/////////////////////////////////////////////////////////////////////////////
 function _M:onProperty_RichTextEx(obj, name, value)
+	-- nothing to do
 	return self:onProperty_Text(obj, name, value)
 end
 
@@ -588,15 +638,15 @@ function _M:handleOpts_RichTextEx(obj)
 	local opts = self.opts
 	
 	if opts.FontSize and obj:getFontSizeDef() ~= opts.FontSize then
-		self:write(string.format("	obj:setFontSizeDef(%s)\n", tostring(opts.FontSize)))
+		self:writef("	obj:setFontSizeDef(%s)\n", tostring(opts.FontSize))
 	end
 	
 	if opts.Color and not isColorEqual(obj:getTextColorDef(), opts.Color) then
-		self:write(string.format("	obj:setTextColorDef(%s)\n", formatColor(opts.Color)))
+		self:writef("	obj:setTextColorDef(%s)\n", formatColor(opts.Color))
 	end
 
 	if opts.LabelText then
-		self:write(string.format("	obj:setString(%s)\n", formatString(opts.LabelText)))
+		self:writef("	obj:setString(%s)\n", formatString(opts.LabelText))
 	end
 	
 	print("handleOpts_RichTextEx")
@@ -606,7 +656,7 @@ end
 function _M:onProperty_TextField(obj, name, value)
 	local opts = self.opts
 	
-	if name == "PlaceHolderText" or name == "LabelText" then
+	if name == "LabelText" or name == "PlaceHolderText" or name == "PasswordStyleText" then
 		opts[name] = value
 	elseif name == "MaxLengthEnable" or name == "PasswordEnable" then
 		opts[name .. "d"] = (value == "True")
@@ -631,6 +681,42 @@ function _M:handleOpts_TextField(obj)
 	self:handleOpts_Node(obj)
 
 	local opts = self.opts
+
+	if opts.LabelText then
+		self:writef("	obj:setString(%s)\n", formatString(opts.LabelText))
+	end
+	
+	if opts.PlaceHolderText then
+		self:writef("	obj:setPlaceHolder(%s)\n", formatString(opts.PlaceHolderText))
+	end
+	
+	if opts.FontSize and obj:getFontSize() ~= opts.FontSize then
+		self:writef("	obj:setFontSize(%s)\n", tostring(opts.FontSize))
+	end
+	
+	if opts.FontName and obj:getFontName() ~= opts.FontName then
+		self:writef("	obj:FontName(\"%s\")\n", tostring(opts.FontName))
+	end
+	
+	if opts.MaxLengthEnabled then
+		if obj:isMaxLengthEnabled() ~= opts.MaxLengthEnabled then
+			self:writef("	obj:setMaxLengthEnabled(%s)\n", tostring(opts.MaxLengthEnabled))
+		end	
+		
+		if opts.MaxLength and obj:getMaxLength() ~= opts.MaxLength then
+			self:writef("	obj:setMaxLength(%s)\n", tostring(opts.MaxLength))
+		end
+	end
+	
+	if opts.PasswordEnabled then
+		if obj:isPasswordEnabled() ~= opts.PasswordEnabled then
+			self:writef("	obj:setPasswordEnabled(%s)\n", tostring(opts.PasswordEnabled))
+		end
+
+		if opts.PasswordStyleText then
+			self:writef("	obj:setPasswordStyleText(%s)\n", formatString(opts.PasswordStyleText))
+		end
+	end
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -645,14 +731,17 @@ function _M:onProperty_TextAtlas(obj, name, value)
 		return self:onProperty_Node(obj, name, value)
 	end	
 
---	print("onProperty_TextField(" .. name .. ", " .. tostring(value) .. ")")		
+--	print("onProperty_TextAtlas(" .. name .. ", " .. tostring(value) .. ")")		
 	return true	
 end
 
 function _M:onChildren_TextAtlas(obj, name, c)
 	local opts = self.opts
 	
-	if name == "LabelAtlasFileImage_CNB" then
+	if name == "LabelBMFontFile_CNB" then
+		local f = c["@Path"] or "", 0, ""
+		self:addTexture(0, f) 
+		opts[name] = f
 	else
 		return self:onChildren_Node(obj, name, c)
 	end
@@ -665,6 +754,60 @@ function _M:handleOpts_TextAtlas(obj)
 	self:handleOpts_Node(obj)
 
 	local opts = self.opts
+	
+	self:write("	obj:ignoreContentAdaptWithSize(true)\n")
+
+	if opts.LabelAtlasFileImage_CNB and opts.StartChar and opts.CharWidth and opts.CharHeight then
+		self:writef("	obj:setProperty(%s, \"%s\", %s, %s, %s)\n", 
+			formatString(opts.LabelText), opts.LabelAtlasFileImage_CNB, 
+			tostring(opts.CharWidth), tostring(opts.CharHeight),
+			formatString(opts.StartChar))
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_TextBMFont(obj, name, value)
+	local opts = self.opts
+	
+	if name == "LabelText" then
+		opts[name] = value
+	else	
+		return self:onProperty_Node(obj, name, value)
+	end	
+
+--	print("onProperty_TextBMFont(" .. name .. ", " .. tostring(value) .. ")")		
+	return true	
+end
+
+function _M:onChildren_TextBMFont(obj, name, c)
+	local opts = self.opts
+	
+	if name == "LabelBMFontFile_CNB" then
+		local f = c["@Path"] or "", 0, ""
+		self:addTexture(0, f) 
+		opts[name] = f
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+--	print("onChildren_TextBMFont(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+function _M:handleOpts_TextBMFont(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+	
+	self:write("	obj:ignoreContentAdaptWithSize(true)\n")
+
+	if opts.LabelText then
+		self:writef("	obj:setString(%s)\n", formatString(opts.LabelText))
+	end
+
+	if opts.LabelAtlasFileImage_CNB then
+		self:writef("	obj:setFntFile(\"%s\")\n", opts.LabelAtlasFileImage_CNB)
+	end
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -684,11 +827,15 @@ end
 function _M:onChildren_CheckBox(obj, name, c)
 	local opts = self.opts
 	
-	if name == "NormalBackFileData"  or name == "PressedBackFileData" or 
-		name == "NodeNormalFileData" or name == "DisableBackFileData" or name == "NodeDisableFileData" then
-		local p = c["@Plist"] or ""
-		if #p > 0 then self:writPlist(p) end
-		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+	if name == "NormalBackFileData"  or name == "PressedBackFileData" or name == "DisableBackFileData" or
+		name == "NodeNormalFileData" or name == "NodeDisableFileData" then
+		local f, t, p = c["@Path"] or "", resourceType(c["@Type"]), c["@Plist"] or ""
+		if #p > 0 then 
+			self:addTexture(t, p) 
+		else	
+			self:addTexture(t, f) 
+		end
+		opts[name] = { f, t, p }
 	else
 		return self:onChildren_Node(obj, name, c)
 	end
@@ -701,6 +848,40 @@ function _M:handleOpts_CheckBox(obj)
 	self:handleOpts_Node(obj)
 
 	local opts = self.opts
+	
+	if opts.NormalBackFileData then
+		self:writef("	obj:loadTextureBackGround(\"%s\", %s)\n", tostring(opts.NormalBackFileData[1]), tostring(opts.NormalBackFileData[2]))
+	end
+	
+	if opts.PressedBackFileData then
+		self:writef("	obj:loadTextureBackGroundSelected(\"%s\", %s)\n", tostring(opts.PressedBackFileData[1]), tostring(opts.PressedBackFileData[2]))
+	end
+	
+	if opts.DisableBackFileData then
+		self:writef("	obj:loadTextureBackGroundDisabled(\"%s\", %s)\n", tostring(opts.DisableBackFileData[1]), tostring(opts.DisableBackFileData[2]))
+	end
+	
+	if opts.NodeNormalFileData then
+		self:writef("	obj:loadTextureFrontCross(\"%s\", %s)\n", tostring(opts.NodeNormalFileData[1]), tostring(opts.NodeNormalFileData[2]))
+	end
+	
+	if opts.NodeDisableFileData then
+		self:writef("	obj:loadTextureFrontCrossDisabled(\"%s\", %s)\n", tostring(opts.NodeDisableFileData[1]), tostring(opts.NodeDisableFileData[2]))
+	end
+	
+	if nil ~= opts.CheckedState and obj:isSelected() ~= opts.CheckedState then
+		self:writef("	obj:setSelected(%s)\n", tostring(opts.CheckedState))
+	end
+	
+	if nil ~= opts.DisplayState then
+		if obj:isBright() ~= opts.DisplayState then
+			self:writef("	obj:setBright(%s)\n", tostring(opts.DisplayState))
+		end
+		
+		if obj:isEnabled() ~= opts.DisplayState then
+			self:writef("	obj:setEnabled(%s)\n", tostring(opts.DisplayState))
+		end
+	end
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -726,6 +907,18 @@ function _M:handleOpts_Sprite(obj)
 	self:handleOpts_Node(obj)
 
 	local opts = self.opts
+	
+	if opts.FileData then
+		if opts.FileData[2] == 0 then
+			self:writef("	obj:setTexture(\"%s\")\n", opts.FileData[1])
+		elseif opts.FileData[2] == 1 then
+			self:writef("	obj:setSpriteFrame(\"%s\")\n", opts.FileData[1])
+		end
+	end
+	
+	if opts.BlendFunc then
+		-- TODO
+	end
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -747,9 +940,13 @@ function _M:onChildren_Slider(obj, name, c)
 	
 	if name == "BackGroundData"  or name == "ProgressBarData" or 
 		name == "BallNormalData" or name == "BallPressedData" or name == "BallDisabledData" then
-		local p = c["@Plist"] or ""
-		if #p > 0 then self:writPlist(p) end
-		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+		local f, t, p = c["@Path"] or "", resourceType(c["@Type"]), c["@Plist"] or ""
+		if #p > 0 then 
+			self:addTexture(t, p) 
+		else	
+			self:addTexture(t, f) 
+		end
+		opts[name] = { f, t, p }
 	else
 		return self:onChildren_Node(obj, name, c)
 	end
@@ -762,6 +959,40 @@ function _M:handleOpts_Slider(obj)
 	self:handleOpts_Node(obj)
 
 	local opts = self.opts
+	
+	if opts.Percent and obj:getPercent() ~= opts.Percent then
+		self:writef("	obj:setPercent(%s)\n", tostring(opts.Percent))
+	end
+
+	if opts.BackGroundData then
+		self:writef("	obj:loadBarTexture(\"%s\", %s)\n", tostring(opts.BackGroundData[1]), tostring(opts.BackGroundData[2]))
+	end
+
+	if opts.BallNormalData then
+		self:writef("	obj:loadSlidBallTextureNormal(\"%s\", %s)\n", tostring(opts.BallNormalData[1]), tostring(opts.BallNormalData[2]))
+	end
+
+	if opts.BallPressedData then
+		self:writef("	obj:loadSlidBallTexturePressed(\"%s\", %s)\n", tostring(opts.BallPressedData[1]), tostring(opts.BallPressedData[2]))
+	end
+
+	if opts.BallDisabledData then
+		self:writef("	obj:loadSlidBallTextureDisabled(\"%s\", %s)\n", tostring(opts.BallDisabledData[1]), tostring(opts.BallDisabledData[2]))
+	end
+
+	if opts.ProgressBarData then
+		self:writef("	obj:loadProgressBarTexture(\"%s\", %s)\n", tostring(opts.ProgressBarData[1]), tostring(opts.ProgressBarData[2]))
+	end
+	
+	if nil ~= opts.DisplayState then
+		if obj:isBright() ~= opts.DisplayState then
+			self:writef("	obj:setBright(%s)\n", tostring(opts.DisplayState))
+		end
+		
+		if obj:isEnabled() ~= opts.DisplayState then
+			self:writef("	obj:setEnabled(%s)\n", tostring(opts.DisplayState))
+		end
+	end
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -788,9 +1019,13 @@ function _M:onChildren_LoadingBar(obj, name, c)
 	local opts = self.opts
 	
 	if name == "ImageFileData" then
-		local p = c["@Plist"] or ""
-		if #p > 0 then self:writPlist(p) end
-		opts[name] = { c["@Path"] or "", resourceType(c["@Type"]), p }
+		local f, t, p = c["@Path"] or "", resourceType(c["@Type"]), c["@Plist"] or ""
+		if #p > 0 then 
+			self:addTexture(t, p) 
+		else	
+			self:addTexture(t, f) 
+		end
+		opts[name] = { f, t, p }
 	else
 		return self:onChildren_Node(obj, name, c)
 	end
@@ -803,6 +1038,18 @@ function _M:handleOpts_LoadingBar(obj)
 	self:handleOpts_Node(obj)
 
 	local opts = self.opts
+	
+	if opts.Percent and obj:getPercent() ~= opts.Percent then
+		self:writef("	obj:setPercent(%s)\n", tostring(opts.Percent))
+	end
+	
+	if opts.Direction and obj:getDirection() ~= opts.Direction then
+		self:writef("	obj:setDirection(%s)\n", tostring(opts.Direction))
+	end
+
+	if opts.ImageFileData then
+		self:writef("	obj:loadTexture(\"%s\", %s)\n", tostring(opts.ImageFileData[1]), tostring(opts.ImageFileData[2]))
+	end
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -830,7 +1077,7 @@ function _M:onChildren_Layout(obj, name, c)
 		opts[name] = { tonumber(c["@R"]) or 0, tonumber(c["@G"]) or 0, 
 			tonumber(c["@B"]) or 0, tonumber(c["@A"]) }
 	elseif name == "ColorVector" then
-		opts[name] = { tonumber(c["@ScaleX"]) or 1, tonumber(c["@ScaleY"]) or 1 }
+		opts[name] = { tonumber(c["@ScaleX"]) or 0, tonumber(c["@ScaleY"]) or 1 }
 	else
 		return self:onChildren_Node(obj, name, c)
 	end
@@ -848,9 +1095,9 @@ function _M:handleOpts_Layout(obj)
 			local capInsets = string.format("cc.rect(%s, %s, %s, %s)", 
 				tostring(opts.Scale9OriginX or 0), tostring(opts.Scale9OriginY or 0), 
 				tostring(opts.Scale9Width or 0), tostring(opts.Scale9Height or 0))
-			self:write(string.format("	_L:setBgImage(obj, \"%s\", %s, true, %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]), capInsets))
+			self:writef("	_L:setBgImage(obj, \"%s\", %s, true, %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]), capInsets)
 		else	
-			self:write(string.format("	obj:setBackGroundImage(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2])))
+			self:writef("	obj:setBackGroundImage(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]))
 		end
 	end
 	
@@ -859,33 +1106,35 @@ function _M:handleOpts_Layout(obj)
 	end
 	
 	if nil ~= opts.BackGroundColorType and opts.BackGroundColorType ~= 0 then
-		local bgType, bgOpacity, bgColor, startColor, endColor
+		local bgType, bgOpacity, bgColor, startColor, endColor, colorVec
 	
-	--	if opts.BackGroundColorType and obj:getBackGroundColorType() ~= opts.BackGroundColorType then
+		if obj:getBackGroundColorType() ~= opts.BackGroundColorType then
 			bgType = opts.BackGroundColorType
-	--		self:write("	obj:setBackGroundColorType(" .. tostring(opts.BackGroundColorType) .. ")\n")
-	--	end
-
-		if opts.BackGroundColorType ~= 0 then			
-			if opts.FirstColor and opts.EndColor and not isColorEqual(obj:getBackGroundStartColor(), opts.FirstColor) and 
-				not isColorEqual(obj:getBackGroundEndColor(), opts.EndColor) then
-				startColor = opts.FirstColor
-				endColor = opts.EndColor
-	--			self:write("	obj:setBackGroundColor(" .. formatColor(opts.FirstColor) .. ", " .. formatColor(opts.EndColor) .. ")\n")
-			end
-			if opts.SingleColor and not isColorEqual(obj:getBackGroundColor(), opts.SingleColor) then
-				bgColor = opts.SingleColor
-	--			self:write("	obj:setBackGroundColor(" .. formatColor(opts.SingleColor) .. ")\n")
-			end
-		
-			if opts.BackGroundColorOpacity and obj:getBackGroundColorOpacity() ~= opts.BackGroundColorOpacity then
-				bgOpacity = opts.BackGroundColorOpacity
-	--			self:write("	obj:setBackGroundColorOpacity(" .. tostring(opts.BackGroundColorOpacity) .. ")\n")
-			end
 		end
 
-		self:write(string.format(	"	_L.setBgColor(obj, %s, %s, %s, %s, %s)\n",
-			tostring(bgType), tostring(bgOpacity), formatColor(bgColor), formatColor(startColor), formatColor(endColor)))
+		if opts.BackGroundColorType == 1 and opts.SingleColor and 
+			not isColorEqual(obj:getBackGroundColor(), opts.SingleColor) then
+			bgColor = opts.SingleColor
+		end
+
+		if opts.BackGroundColorType == 2 and opts.FirstColor and opts.EndColor and 
+			not isColorEqual(obj:getBackGroundStartColor(), opts.FirstColor) and 
+			not isColorEqual(obj:getBackGroundEndColor(), opts.EndColor) then
+			startColor = opts.FirstColor
+			endColor = opts.EndColor
+		end
+		
+		if opts.BackGroundColorType == 2 and opts.ColorVector and 
+			not isPointEqual(obj:getBackGroundColorVector(), opts.ColorVector) then
+			colorVec = opts.ColorVector
+		end
+	
+		if opts.BackGroundColorOpacity and obj:getBackGroundColorOpacity() ~= opts.BackGroundColorOpacity then
+			bgOpacity = opts.BackGroundColorOpacity
+		end
+
+		self:writef("	_L.setBgColor(obj, %s, %s, %s, %s, %s, %s)\n",
+			tostring(bgType), tostring(bgOpacity), formatColor(bgColor), formatColor(startColor), formatColor(endColor), formatPoint(colorVec))
 	end
 end
 
@@ -929,6 +1178,18 @@ function _M:handleOpts_ScrollView(obj)
 	self:handleOpts_Layout(obj)
 
 	local opts = self.opts
+	
+	if opts.InnerContainerSize and not isSizeEqual(obj:getInnerContainerSize(), opts.InnerContainerSize) then
+		self:writef("	obj:setInnerContainerSize(%s)\n", formatSize(opts.InnerContainerSize))
+	end
+	
+	if opts.Direction and obj:getDirection() ~= opts.Direction then
+		self:writef("	obj:setDirection(%s)\n", tostring(opts.Direction))
+	end
+	
+	if nil ~= opts.BounceEnabled and obj:isBounceEnabled() ~= opts.BounceEnabled then
+		self:writef("	obj:setBounceEnabled(%s)\n", tostring(opts.BounceEnabled))
+	end
 end
 	
 --/////////////////////////////////////////////////////////////////////////////
@@ -939,11 +1200,11 @@ function _M:onProperty_ListView(obj, name, value)
 		opts["ItemsMargin"] = tonumber(value) or 0
 	elseif name == "DirectionType" then
 		if value == "" then
-			opts["Direction"] = 2
+			opts["Gravity"] = 2
 		elseif value == "Vertical" then
-			opts["Direction"] = 1
+			opts["Gravity"] = 1
 		else
-			opts["Direction"] = tonumber(value) or 0
+			opts["Gravity"] = tonumber(value) or 0
 		end
 	elseif name == "VerticalType"  then
 		if value == "" then
@@ -979,20 +1240,19 @@ function _M:onChildren_ListView(obj, name, c)
 end
 
 function _M:handleOpts_ListView(obj)
-	self:handleOpts_Layout(obj)
+	self:handleOpts_ScrollView(obj)
 
 	local opts = self.opts
 	
-	if opts.Direction and type(obj.getDirection) == "function" then
-		if opts.Direction ~= obj:getDirection() then
-			table.insert(tblVal, string.format("	obj:setDirection(%d)\n", opts.Direction))
-		end
-		if opts.Direction == 2 and opts.VerticalType then
-			table.insert(tblVal, string.format("	obj:setGravity(%d)\n", opts.VerticalType))
-		elseif opts.Direction == 1 and opts.HorizontalType then
-			table.insert(tblVal, string.format("	obj:setGravity(%d)\n", opts.HorizontalType))
-		end
+	if opts.ItemsMargin and obj:getItemsMargin() ~= opts.ItemsMargin then
+		self:writef("	obj:setItemsMargin(%d)\n", tonumber(opts.ItemsMargin) or 0)
 	end
+	
+	if opts.Gravity == 2 then
+		self:writef("	obj:setGravity(%d)\n", tonumber(opts.VerticalType) or 0)
+	elseif opts.Gravity == 1 then
+		self:writef("	obj:setGravity(%d)\n", tonumber(opts.HorizontalType) or 0)
+	end	
 end
 	
 --/////////////////////////////////////////////////////////////////////////////
@@ -1008,9 +1268,7 @@ end
 
 function _M:handleOpts_PageView(obj)
 	self:handleOpts_Layout(obj)
-
-	local opts = self.opts
-	
+	-- nothing to do
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -1099,7 +1357,7 @@ function _M:handleNodeLays(root, obj, className)
 	end		
 	
 	if #margins > 0 or #sizes > 0 or #positions > 0 or #stretchs > 0 or #edges > 0 then
-		self:write(string.format("	_L.bind(obj)%s%s%s%s%s\n", margins, sizes, positions, stretchs, edges))
+		self:writef("	_L.bind(obj)%s%s%s%s%s\n", margins, sizes, positions, stretchs, edges)
 	end	
 end
 
@@ -1152,14 +1410,12 @@ local function objScriptOf(className)
 	obj = ccui.Text:create()
 ]]
     elseif className == "RichTextEx" then
-    	className = "RichTextEx"
 		obj = require("ccext.RichTextEx"):create()
 		script = 
 [[
 	obj = require("ccext.RichTextEx"):create()
 ]]
     elseif className == "TextField" then
-    	className = "TextField"
 		obj = ccui.TextField:create()
 		script = 
 [[
@@ -1174,7 +1430,11 @@ local function objScriptOf(className)
 ]]
     elseif className == "LabelBMFont" or className == "TextBMFont" then
     	className = "TextBMFont"
---        reader = TextBMFontReader::getInstance();
+		obj = ccui.TextBMFont:create()
+		script = 
+[[
+	obj = ccui.TextBMFont:create()
+]]
     elseif className == "Slider" then
 		obj = ccui.Slider:create()
 		script = 
@@ -1297,15 +1557,17 @@ function _M:writef(fmt, ...)
 end
 
 --/////////////////////////////////////////////////////////////////////////////
-function _M:writPlist(plist)
-	if not self._plists then
-		self._plists = {}
+function _M:addTexture(t, texture)
+	if not self._textures then
+		self._textures = {}
 	end
-	for _, value in pairs(self._plists) do
-		if value == plist then return end
+	for _, value in pairs(self._textures) do
+		if value == texture then return end
 	end	
-	table.insert(self._plists, plist)
-	self:write("	cc.SpriteFrameCache:getInstance():addSpriteFrames(\"" .. plist .. "\")\n")
+	table.insert(self._textures, texture)
+	if t == 1 then
+		self:write("	cc.SpriteFrameCache:getInstance():addSpriteFrames(\"" .. texture .. "\")\n")
+	end	
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -1378,7 +1640,7 @@ function _M:csd2lua(csdFile, luaFile)
 	self:write(_CREATE_FUNC_FOOT)
 	
 	self:write("_M.textures = {\n")
-	for _, k in pairs(self._plists) do
+	for _, k in pairs(self._textures or {}) do
 		self:write("	\""  .. k ..  "\",\n")
 	end
 	self:write("}\n")
