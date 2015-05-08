@@ -109,6 +109,10 @@ local _SCRIPT_HEAD =
 
 local _M = {}
 
+]]
+
+local _CREATE_FUNC_HEAD =
+[[
 function _M.create(callBackProvider)
 	local cc, ccui = cc, ccui
 	
@@ -118,12 +122,18 @@ function _M.create(callBackProvider)
 
 ]]
 
-local _SCRIPT_FOOT =
+local _CREATE_FUNC_FOOT =
 [[
 	return roots
 end
 
+]]
+
+local _SCRIPT_FOOT =
+[[
+
 return _M
+
 ]]
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -1347,6 +1357,7 @@ function _M:csd2lua(csdFile, luaFile)
 
 	self:write(_SCRIPT_HELPER)
 	self:write(_SCRIPT_HEAD)
+	self:write(_CREATE_FUNC_HEAD)
 
 	nextSiblingNode = nextSiblingIter(node)
 	node = nextSiblingNode()
@@ -1364,8 +1375,16 @@ function _M:csd2lua(csdFile, luaFile)
 		node = nextSiblingNode()
 	end
 
-	self:write(_SCRIPT_FOOT)
+	self:write(_CREATE_FUNC_FOOT)
 	
+	self:write("_M.textures = {\n")
+	for _, k in pairs(self._plists) do
+		self:write("	\""  .. k ..  "\",\n")
+	end
+	self:write("}\n")
+	
+	self:write(_SCRIPT_FOOT)
+
 	io.close(file)
 end
 
