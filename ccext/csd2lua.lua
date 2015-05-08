@@ -158,7 +158,7 @@ local function isColorEqual(clr, values)
 	return true	
 end
 
-local function toColorStr(value)
+local function formatColor(value)
 	if value and value[4] then
 		return string.format("cc.c4b(%s, %s, %s, %s)", tostring(value[1]), tostring(value[2]), tostring(value[3]), tostring(value[4]))
 	elseif value then
@@ -168,7 +168,7 @@ local function toColorStr(value)
 	end	
 end
 
-local function toSizeStr(value)
+local function formatSize(value)
 	if value then
 		return string.format("cc.size(%s, %s)", tostring(value[1] or 0), tostring(value[2] or 0)) 
 	else
@@ -176,12 +176,30 @@ local function toSizeStr(value)
 	end		
 end    	
 
-local function toPointStr(value)
+local function formatPoint(value)
     if value then
 		return string.format("cc.p(%s, %s)", tostring(value[1] or 0), tostring(value[2] or 0)) 
 	else
 		return "nil"
 	end	
+end
+
+local function formatString(value)
+	if string.find(value, "[", 1, true) or string.find(value, "]", 1, true) then
+		local i, s, f, e = 1	
+		while true do
+			s = string.rep("=", i)
+			f = "[" .. s .. "["
+			e = "]" .. s .. "]"
+		
+			if not string.find(value, f, 1, true) and not string.find(value, e, 1, true) then
+				return f .. value .. e
+			end
+		
+			i = i + 1
+		end
+	end		
+	return "[[" .. value .. "]]"
 end
 
 local function resourceType(t)
@@ -356,8 +374,8 @@ function _M:handleOpts_Node(obj)
 	end
 	    	
 	self:write(string.format("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s)\n",
-		tostring(tblTmp.Name), tostring(tblTmp.Tag), toSizeStr(tblTmp.Size), toPointStr(tblTmp.Position), toPointStr(tblTmp.AnchorPoint),
-		toColorStr(tblTmp.Color), tostring(tblTmp.Opacity), tostring(tblTmp.LocalZOrder)))
+		tostring(tblTmp.Name), tostring(tblTmp.Tag), formatSize(tblTmp.Size), formatPoint(tblTmp.Position), formatPoint(tblTmp.AnchorPoint),
+		formatColor(tblTmp.Color), tostring(tblTmp.Opacity), tostring(tblTmp.LocalZOrder)))
 
     if #tblVal > 0 then
 	    self:write(table.concat(tblVal))
@@ -453,12 +471,12 @@ function _M:handleOpts_Button(obj)
 	end	
 	
 	if opts.OutlineEnabled and opts.OutlineColor and opts.OutlineSize  then
-		self:write(string.format("	obj:enableOutline(%s, %s)\n", toColorStr(opts.OutlineColor), tostring(opts.OutlineSize or 0)))
+		self:write(string.format("	obj:enableOutline(%s, %s)\n", formatColor(opts.OutlineColor), tostring(opts.OutlineSize or 0)))
 	end
 	
 	if opts.ShadowEnabled and opts.ShadowColor and opts.ShadowOffsetX and opts.ShadowOffsetY and opts.ShadowBlurRadius then
 		self:write(string.format("	obj:enableShadow(%s, cc.size(%d, %d), %s)\n", 
-			toColorStr(opts.ShadowColor), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius)))
+			formatColor(opts.ShadowColor), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius)))
 	end
 
 	if opts.Scale9Enabled then
@@ -475,7 +493,7 @@ function _M:handleOpts_Button(obj)
 	end
 	
 	if opts.TextColor and not isColorEqual(obj:getTitleColor(), opts.TextColor) then
-		self:write("	obj:setTitleColor(" .. toColorStr(opts.TextColor) .. ")\n")
+		self:write("	obj:setTitleColor(" .. formatColor(opts.TextColor) .. ")\n")
 	end
 	
 	if opts.FontSize and obj:getTitleFontSize() ~= opts.FontSize then
@@ -532,11 +550,7 @@ function _M:handleOpts_Text(obj)
 	local opts = self.opts
 	
 	if opts.LabelText then
-		if string.find(opts.LabelText, "[", 1, true) or string.find(opts.LabelText, "]", 1, true) then
-			self:write(string.format("	obj:setString([===[%s]===])\n", tostring(opts.LabelText)))
-		else
-			self:write(string.format("	obj:setString([[%s]])\n", tostring(opts.LabelText)))
-		end	
+		self:write(string.format("	obj:setString(%s)\n", formatString(opts.LabelText)))
 	end
 	
 	if opts.FontSize and obj:getFontSize() ~= opts.FontSize then
@@ -568,15 +582,11 @@ function _M:handleOpts_RichTextEx(obj)
 	end
 	
 	if opts.Color and not isColorEqual(obj:getTextColorDef(), opts.Color) then
-		self:write(string.format("	obj:setTextColorDef(%s)\n", toColorStr(opts.Color)))
+		self:write(string.format("	obj:setTextColorDef(%s)\n", formatColor(opts.Color)))
 	end
 
 	if opts.LabelText then
-		if string.find(opts.LabelText, "[", 1, true) or string.find(opts.LabelText, "]", 1, true) then
-			self:write(string.format("	obj:setString([===[%s]===])\n", tostring(opts.LabelText)))
-		else
-			self:write(string.format("	obj:setString([[%s]])\n", tostring(opts.LabelText)))
-		end	
+		self:write(string.format("	obj:setString(%s)\n", formatString(opts.LabelText)))
 	end
 	
 	print("handleOpts_RichTextEx")
@@ -851,11 +861,11 @@ function _M:handleOpts_Layout(obj)
 				not isColorEqual(obj:getBackGroundEndColor(), opts.EndColor) then
 				startColor = opts.FirstColor
 				endColor = opts.EndColor
-	--			self:write("	obj:setBackGroundColor(" .. toColorStr(opts.FirstColor) .. ", " .. toColorStr(opts.EndColor) .. ")\n")
+	--			self:write("	obj:setBackGroundColor(" .. formatColor(opts.FirstColor) .. ", " .. formatColor(opts.EndColor) .. ")\n")
 			end
 			if opts.SingleColor and not isColorEqual(obj:getBackGroundColor(), opts.SingleColor) then
 				bgColor = opts.SingleColor
-	--			self:write("	obj:setBackGroundColor(" .. toColorStr(opts.SingleColor) .. ")\n")
+	--			self:write("	obj:setBackGroundColor(" .. formatColor(opts.SingleColor) .. ")\n")
 			end
 		
 			if opts.BackGroundColorOpacity and obj:getBackGroundColorOpacity() ~= opts.BackGroundColorOpacity then
@@ -865,7 +875,7 @@ function _M:handleOpts_Layout(obj)
 		end
 
 		self:write(string.format(	"	_L.setBgColor(obj, %s, %s, %s, %s, %s)\n",
-			tostring(bgType), tostring(bgOpacity), toColorStr(bgColor), toColorStr(startColor), toColorStr(endColor)))
+			tostring(bgType), tostring(bgOpacity), formatColor(bgColor), formatColor(startColor), formatColor(endColor)))
 	end
 end
 
