@@ -599,7 +599,7 @@ function _M:handleOpts_Text(obj)
 		self:writef("	obj:setTextAreaSize(cc.size(%s))\n", tostring(opts.AreaWidth or 0), tostring(opts.AreaHeight or 0))
 	end	
 	
-	if opts.TextHorizontalAlignment and obj:getHorizontalAlignmentType() ~= opts.TextHorizontalAlignment then
+	if opts.TextHorizontalAlignment and obj:getTextHorizontalAlignment() ~= opts.TextHorizontalAlignment then
 		self:writef("	obj:setTextHorizontalAlignment(%s)\n", tostring(opts.TextHorizontalAlignment))
 	end
 	
@@ -1496,7 +1496,7 @@ end
 
 --/////////////////////////////////////////////////////////////////////////////
 local _createNodeTree, _i = nil, 0
-_createNodeTree = function(self, root, classType, rootName)
+_createNodeTree = function(self, root, classType, rootName, rootClassName)
 	local className = string.sub(classType, 1, string.find(classType, "ObjectData") - 1)
 --	print("_createNodeTree(classType=" .. classType .. ", className=" .. className .. ")")
 
@@ -1506,13 +1506,20 @@ _createNodeTree = function(self, root, classType, rootName)
 	self:write(script)
 	
 	if rootName then
-		self:write("	" .. rootName .. ":addChild(obj)\n")
+		if rootClassName == "PageView" and className == "Layout" then
+			self:write("	" .. rootName .. ":addPage(obj)\n")
+		elseif rootClassName == "ListView" then
+			self:write("	" .. rootName .. ":pushBackCustomItem(obj)\n")
+		else
+			self:write("	" .. rootName .. ":addChild(obj)\n")
+		end	
 	else
 		self:write("	roots.root = obj\n")
 	end
 	
 	rootName = self:parseNodeXml(root, obj, className)
 	rootName = "roots." .. rootName .. "_" .. tostring(_i)
+	rootClassName = className
 
 	_i = _i + 1
 	if root.Children then
@@ -1532,7 +1539,7 @@ _createNodeTree = function(self, root, classType, rootName)
 				end					
 			end
 			
-			_createNodeTree(self, node, className, rootName)
+			_createNodeTree(self, node, className, rootName, rootClassName)
 			node = nextSiblingNode()
 		end
 	else
