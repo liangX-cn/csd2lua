@@ -328,6 +328,7 @@ end
 
 function _M:handleOpts_Node(obj)
 	local opts = self.opts
+	local lays = self.lays
 	
 	local tblVal, tblTmp, str = {}, {}, ""
 	
@@ -394,7 +395,8 @@ function _M:handleOpts_Node(obj)
 	    self:write(table.concat(tblVal))
 	end
 	
-	if opts.IsCustomSize and obj:isIgnoreContentAdaptWithSize() then
+	if (opts.IsCustomSize or lays.PercentWidthEnabled or lays.PercentHeightEnabled or opts.Scale9Enabled) 
+		and obj:isIgnoreContentAdaptWithSize() then
 		self:write("	obj:ignoreContentAdaptWithSize(false)\n")
 	end
 end
@@ -406,28 +408,39 @@ function _M:onProperty_ImageView(obj, name, value)
 end
 
 function _M:onChildren_ImageView(obj, name, c)
-	-- nothing to do
-	return self:onChildren_Node(obj, name, c)
+--	local opts = self.opts
+--
+--	if name == "Size" and opts.Scale9Enabled then
+--		opts["Scale9Size"] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
+--	else
+		return self:onChildren_Node(obj, name, c)
+--	end
+--	
+--	print("onChildren_ImageView(" .. name .. ", " .. tostring(opts[name]) .. ")")
+--	return true	
 end
 
 function _M:handleOpts_ImageView(obj)
-	self:handleOpts_Node(obj)
-
 	local opts = self.opts
-
-	if opts.FileData then
-		self:writef("	obj:loadTexture(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]))
-	end	
 
 	if opts.Scale9Enabled then
 		local capInsets = string.format("cc.rect(%s, %s, %s, %s)", 
 			tostring(opts.Scale9OriginX or 0), tostring(opts.Scale9OriginY or 0), 
 			tostring(opts.Scale9Width or 0), tostring(opts.Scale9Height or 0))
 
-		self:write("	obj:ignoreContentAdaptWithSize(false)\n")
 		self:write("	obj:setScale9Enabled(true)\n")
 		self:write("	obj:setCapInsets(" .. capInsets .. ")\n")
+--		
+--		if opts.Scale9Size then
+--			self:writef("	obj:setContentSize(%s)\n", formatSize(opts.Scale9Size))
+--		end
 	end
+
+	self:handleOpts_Node(obj)
+
+	if opts.FileData then
+		self:writef("	obj:loadTexture(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]))
+	end	
 end
 
 --/////////////////////////////////////////////////////////////////////////////
@@ -458,6 +471,8 @@ function _M:onChildren_Button(obj, name, c)
 			self:addTexture(t, f) 
 		end
 		opts[name] = { f, t, p }
+--	elseif name == "Size" and opts.Scale9Enabled then
+--		opts["Scale9Size"] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
 	else	
 		return self:onChildren_Node(obj, name, c)
 	end
@@ -467,9 +482,21 @@ function _M:onChildren_Button(obj, name, c)
 end
 
 function _M:handleOpts_Button(obj)
-	self:handleOpts_Node(obj)
-
 	local opts = self.opts
+
+	if opts.Scale9Enabled then
+		local capInsets = string.format("cc.rect(%s, %s, %s, %s)", 
+			tostring(opts.Scale9OriginX or 0), tostring(opts.Scale9OriginY or 0), 
+			tostring(opts.Scale9Width or 0), tostring(opts.Scale9Height or 0))
+
+		self:write("	obj:setCapInsets(" .. capInsets .. ")\n")
+--
+--		if opts.Scale9Size then
+--			self:writef("	obj:setContentSize(%s)\n", formatSize(opts.Scale9Size))
+--		end	
+	end
+
+	self:handleOpts_Node(obj)
 
 	if opts.NormalFileData then
 		self:writef("	obj:loadTextureNormal(\"%s\", %s)\n", tostring(opts.NormalFileData[1]), tostring(opts.NormalFileData[2]))
@@ -503,22 +530,6 @@ function _M:handleOpts_Button(obj)
 	if opts.ShadowEnabled then
 		self:writef("	obj:enableShadow(%s, cc.size(%d, %d), %s)\n", 
 			formatColor(opts.ShadowColor or { 0, 0, 0, 0}), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius or 0))
-	end
-
-	if opts.Scale9Enabled then
-		local capInsets = string.format("cc.rect(%s, %s, %s, %s)", 
-			tostring(opts.Scale9OriginX or 0), tostring(opts.Scale9OriginY or 0), 
-			tostring(opts.Scale9Width or 0), tostring(opts.Scale9Height or 0))
-
-		if obj:isUnifySizeEnabled() then
-			self:write("	obj:setUnifySizeEnabled(false)\n")
-		end	
-
---		if obj:isIgnoreContentAdaptWithSize() then
---			self:write("	obj:ignoreContentAdaptWithSize(false)\n")
---		end	
-
-		self:write("	obj:setCapInsets(" .. capInsets .. ")\n")
 	end
 	
 	if opts.ButtonText and not obj:getTitleText() ~= opts.ButtonText then
@@ -1087,6 +1098,8 @@ function _M:onChildren_Layout(obj, name, c)
 			tonumber(c["@B"]) or 0, tonumber(c["@A"]) }
 	elseif name == "ColorVector" then
 		opts[name] = { tonumber(c["@ScaleX"]) or 0, tonumber(c["@ScaleY"]) or 1 }
+	elseif name == "Size" and opts.Scale9Enabled then
+		opts["Scale9Size"] = { tonumber(c["@X"]) or 0, tonumber(c["@Y"]) or 0 }
 	else
 		return self:onChildren_Node(obj, name, c)
 	end
@@ -1105,6 +1118,10 @@ function _M:handleOpts_Layout(obj)
 				tostring(opts.Scale9OriginX or 0), tostring(opts.Scale9OriginY or 0), 
 				tostring(opts.Scale9Width or 0), tostring(opts.Scale9Height or 0))
 			self:writef("	_L:setBgImage(obj, \"%s\", %s, true, %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]), capInsets)
+			
+			if opts.Scale9Size then
+				self:writef("	obj:setContentSize(%s)\n", formatSize(opts.Scale9Size))
+			end
 		else	
 			self:writef("	obj:setBackGroundImage(\"%s\", %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]))
 		end
