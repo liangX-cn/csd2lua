@@ -805,8 +805,8 @@ function _M:handleOpts_TextBMFont(obj)
 		self:writef("	obj:setString(%s)\n", formatString(opts.LabelText))
 	end
 
-	if opts.LabelAtlasFileImage_CNB then
-		self:writef("	obj:setFntFile(\"%s\")\n", opts.LabelAtlasFileImage_CNB)
+	if opts.LabelBMFontFile_CNB then
+		self:writef("	obj:setFntFile(\"%s\")\n", opts.LabelBMFontFile_CNB)
 	end
 end
 
