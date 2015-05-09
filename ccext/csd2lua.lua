@@ -278,7 +278,7 @@ function _M:onProperty_Node(obj, name, value)
 		opts[name] = value
 	elseif name == "DisplayState" or name == "IsCustomSize" or name == "OutlineEnabled" or name == "ShadowEnabled" then
 		opts[name] = (value == "True")
-	elseif name == "OutlineSize" and name == "ShadowOffsetX" and name == "ShadowOffsetY" and name == "ShadowBlurRadius" then
+	elseif name == "OutlineSize" or name == "ShadowOffsetX" or name == "ShadowOffsetY" or name == "ShadowBlurRadius" then
 		opts[name] = tonumber(value) or 0
 	else
 		return false
@@ -396,7 +396,7 @@ function _M:handleOpts_Node(obj)
 	    self:write(table.concat(tblVal))
 	end
 	
-	if opts.IsCustomSize then
+	if opts.IsCustomSize and obj:isIgnoreContentAdaptWithSize() then
 		self:write("	obj:ignoreContentAdaptWithSize(false)\n")
 	end
 end
@@ -512,7 +512,14 @@ function _M:handleOpts_Button(obj)
 			tostring(opts.Scale9OriginX or 0), tostring(opts.Scale9OriginY or 0), 
 			tostring(opts.Scale9Width or 0), tostring(opts.Scale9Height or 0))
 
-		self:write("	obj:ignoreContentAdaptWithSize(false)\n")
+		if obj:isUnifySizeEnabled() then
+			self:write("	obj:setUnifySizeEnabled(false)\n")
+		end	
+
+--		if obj:isIgnoreContentAdaptWithSize() then
+--			self:write("	obj:ignoreContentAdaptWithSize(false)\n")
+--		end	
+
 		self:write("	obj:setCapInsets(" .. capInsets .. ")\n")
 	end
 	
@@ -738,7 +745,7 @@ end
 function _M:onChildren_TextAtlas(obj, name, c)
 	local opts = self.opts
 	
-	if name == "LabelBMFontFile_CNB" then
+	if name == "LabelAtlasFileImage_CNB" then
 		local f = c["@Path"] or "", 0, ""
 		self:addTexture(0, f) 
 		opts[name] = f
@@ -755,7 +762,9 @@ function _M:handleOpts_TextAtlas(obj)
 
 	local opts = self.opts
 	
-	self:write("	obj:ignoreContentAdaptWithSize(true)\n")
+	if not obj:isIgnoreContentAdaptWithSize() then
+		self:write("	obj:ignoreContentAdaptWithSize(true)\n")
+	end	
 
 	if opts.LabelAtlasFileImage_CNB and opts.StartChar and opts.CharWidth and opts.CharHeight then
 		self:writef("	obj:setProperty(%s, \"%s\", %s, %s, %s)\n", 
@@ -799,7 +808,9 @@ function _M:handleOpts_TextBMFont(obj)
 
 	local opts = self.opts
 	
-	self:write("	obj:ignoreContentAdaptWithSize(true)\n")
+	if not obj:isIgnoreContentAdaptWithSize() then
+		self:write("	obj:ignoreContentAdaptWithSize(true)\n")
+	end	
 
 	if opts.LabelText then
 		self:writef("	obj:setString(%s)\n", formatString(opts.LabelText))
@@ -1199,13 +1210,7 @@ function _M:onProperty_ListView(obj, name, value)
 	if name == "ItemMargin" then
 		opts["ItemsMargin"] = tonumber(value) or 0
 	elseif name == "DirectionType" then
-		if value == "" then
-			opts["Gravity"] = 2
-		elseif value == "Vertical" then
-			opts["Gravity"] = 1
-		else
-			opts["Gravity"] = tonumber(value) or 0
-		end
+		opts["Gravity"] = value
 	elseif name == "VerticalType"  then
 		if value == "" then
 			opts[name] = 3
@@ -1248,17 +1253,29 @@ function _M:handleOpts_ListView(obj)
 		self:writef("	obj:setItemsMargin(%d)\n", tonumber(opts.ItemsMargin) or 0)
 	end
 	
-	if opts.Gravity == 2 then
-		self:writef("	obj:setGravity(%d)\n", tonumber(opts.VerticalType) or 0)
-	elseif opts.Gravity == 1 then
-		self:writef("	obj:setGravity(%d)\n", tonumber(opts.HorizontalType) or 0)
-	end	
+	if opts.VerticalType or opts.HorizontalType then
+		if nil == opts.Gravity or opts.Gravity == "" then
+			self:write("	obj:setDirection(2)\n")
+			self:writef("	obj:setGravity(%d)\n", tonumber(opts.VerticalType) or 0)
+		elseif opts.Gravity == "Vertical" then
+			self:write("	obj:setDirection(1)\n")
+			self:writef("	obj:setGravity(%d)\n", tonumber(opts.HorizontalType) or 0)
+		end	
+	end
 end
-	
+
 --/////////////////////////////////////////////////////////////////////////////
 function _M:onProperty_PageView(obj, name, value)
-	-- nothing to do
-	return self:onProperty_Layout(obj, name, value)
+	local opts = self.opts
+	
+	if name == "ScrollDirectionType" then
+		-- nothing to do
+	else
+		return self:onProperty_Layout(obj, name, value)
+	end	
+	
+--	print("onProperty_PageView(" .. name .. ", " .. value .. ")")	
+	return true	
 end
 
 function _M:onChildren_PageView(obj, name, c)
@@ -1285,9 +1302,9 @@ function _M:readNodeProperties(root, obj, className)
 		local value = p.value
 		
 		if not onProperty(self, obj, name, value) then
-			if name ~= "IconVisible" and name ~= "ctype" and name ~= "ActionTag" and name ~= "ColorAngle" and
+			if name ~= "IconVisible" and name ~= "ctype" and name ~= "ActionTag" and name ~= "ColorAngle" and name ~= "CanEdit" and
 				name ~= "LeftEage" and name ~= "TopEage" and name ~= "RightEage" and name ~= "BottomEage" then
-				print("@@ Nothing to do: readNodeProperties(" .. name .. ")")
+				print("@@ Nothing to do: readNodeProperties(" .. name .. " @" .. className .. ")")
 			end
 		end
 	end
@@ -1302,7 +1319,7 @@ function _M:readNodeChildren(root, obj, className)
 				
 		if not onChildren(self, obj, name, c) then
 			if name ~= "Children" then
-				print("@@ Nothing to do: readNodeChildren(" .. name .. ")")
+				print("@@ Nothing to do: readNodeChildren(" .. name .. " @" .. className .. ")")
 			end	
 		end
 	end
@@ -1524,18 +1541,17 @@ _createNodeTree = function(self, root, classType, rootName, rootClassName)
 	_i = _i + 1
 	if root.Children then
 		local nextSiblingNode = nextSiblingIter(root.Children)
-		local node, name = nextSiblingNode()
+		local node, udata = nextSiblingNode()
 
 		self:write("	" .. rootName .. " = obj\n\n")
 		while node do
 			className = node["@ctype"] or "NodeObjectData"
 
-			name = node["@Name"]
-			if name then
-				local pos = string.find(name, "@class_")
+			udata = node["@UserData"]
+			if udata then
+				local pos = string.find(udata, "@class_", 1, true)
 				if pos then
-					className = string.sub(name,  pos + 7) .. "ObjectData"
-					node["@Name"] = string.sub(name, 1, pos - 1)
+					className = string.sub(udata,  pos + 7) .. "ObjectData"
 				end					
 			end
 			
