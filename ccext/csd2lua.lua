@@ -116,10 +116,8 @@ local _CREATE_FUNC_HEAD =
 [[
 function _M.create(callBackProvider)
 	local cc, ccui = cc, ccui
-	
-	local obj, lay
 
-	local roots = {}
+	local roots, obj = {}
 
 ]]
 
@@ -498,13 +496,13 @@ function _M:handleOpts_Button(obj)
 		end
 	end
 	
-	if opts.OutlineEnabled and opts.OutlineColor and opts.OutlineSize  then
-		self:writef("	obj:enableOutline(%s, %s)\n", formatColor(opts.OutlineColor), tostring(opts.OutlineSize or 0))
+	if opts.OutlineEnabled then
+		self:writef("	obj:enableOutline(%s, %s)\n", formatColor(opts.OutlineColor or {0, 0, 0, 0}), tostring(opts.OutlineSize or 0))
 	end
 	
-	if opts.ShadowEnabled and opts.ShadowColor and opts.ShadowOffsetX and opts.ShadowOffsetY and opts.ShadowBlurRadius then
+	if opts.ShadowEnabled then
 		self:writef("	obj:enableShadow(%s, cc.size(%d, %d), %s)\n", 
-			formatColor(opts.ShadowColor), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius))
+			formatColor(opts.ShadowColor or { 0, 0, 0, 0}), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius or 0))
 	end
 
 	if opts.Scale9Enabled then
@@ -614,13 +612,13 @@ function _M:handleOpts_Text(obj)
 		self:writef("	obj:setTextVerticalAlignment(%s)\n", tostring(opts.TextVerticalAlignment))
 	end
 
-	if opts.OutlineEnabled and opts.OutlineColor and opts.OutlineSize  then
-		self:writef("	obj:enableOutline(%s, %s)\n", formatColor(opts.OutlineColor), tostring(opts.OutlineSize or 0))
+	if opts.OutlineEnabled then
+		self:writef("	obj:enableOutline(%s, %s)\n", formatColor(opts.OutlineColor or {0, 0, 0, 0}), tostring(opts.OutlineSize or 0))
 	end
 	
-	if opts.ShadowEnabled and opts.ShadowColor and opts.ShadowOffsetX and opts.ShadowOffsetY and opts.ShadowBlurRadius then
+	if opts.ShadowEnabled then
 		self:writef("	obj:enableShadow(%s, cc.size(%d, %d), %s)\n", 
-			formatColor(opts.ShadowColor), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius))
+			formatColor(opts.ShadowColor or { 0, 0, 0, 0}), tonumber(opts.ShadowOffsetX) or 0, tonumber(opts.ShadowOffsetY) or 0, tostring(opts.ShadowBlurRadius or 0))
 	end
 	
 	if opts.Color and not isColorEqual(obj:getTextColor(), opts.Color) then
