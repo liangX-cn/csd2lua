@@ -1,108 +1,24 @@
--- you can move these to a LuaHelper.lua and do it like
---[=[
+--[[***************************************************************************
+	A tools to convert a Cocos Studio .csd file to a .lua resource file
+	https://github.com/liangX-cn/csd2lua
+
+ 	Require:
+		Cocos2d-x Lua Project (Tested on Cocos2d-x 3.6)
+		XmlParser.lua
+
+	Usage:
+		require(THIS_LUA).new():csd2lua(csdFullPathFileName, luaFullPathFileName)
+
+--***************************************************************************]]
+
+local _M = class("csd2lua")
+
+--/////////////////////////////////////////////////////////////////////////////
 local _SCRIPT_HELPER = 
 [[
-	local _L = require("LuaHelper.lua")
-]]
---]=]
+-- exported by csd2lua tools: https://github.com/liangX-cn/csd2lua
 
-local _SCRIPT_HELPER = 
-[[
--------------------------------------------------------------------------------	
-local _L = {}
-
-function _L.setValue(obj, name, tag, size, position, ancpoint, color, opacity, zOrder)
-	if type(obj.setCascadeColorEnabled) == "function" then obj:setCascadeColorEnabled(true) end
-	if type(obj.setCascadeOpacityEnabled) == "function" then obj:setCascadeOpacityEnabled(true) end
-	if type(obj.setLayoutComponentEnabled) == "function" then obj:setLayoutComponentEnabled(true) end
-	if nil ~= name then obj:setName(name) end
-	if nil ~= tag then obj:setTag(tag) end
-	if nil ~= color then obj:setColor(color) end
-	if nil ~= opacity then obj:setOpacity(opacity) end
-	if nil ~= zOrder then obj:setLocalZOrder(zOrder) end
-	if nil ~= position then obj:setPosition(position) end
-	if nil ~= ancpoint then obj:setAnchorPoint(ancpoint) end
-	if nil ~= size then 
-		if type(obj.setContentSize) == "function" then
-			obj:setContentSize(size)
-		elseif type(obj.setSize) == "function" then	
-			obj:setSize(size)
-		end	
-	end
-	return _L
-end
-
-function _L.setBgImage(obj, imgName, imgType, scale9En, capInsets)
-	if nil ~= bgType then obj:setBackGroundImage(imgName, imgType or 0) end
-	if nil ~= scale9En and type(obj.setBackGroundImageScale9Enabled) == "function" then 
-		obj:setBackGroundImageScale9Enabled(scale9En) 
-	end
-	if nil ~= capInsets and type(obj.setBackGroundImageCapInsets) == "function" 
-		then obj:setBackGroundImageCapInsets(capInsets) 
-	end
-	return _L
-end
-
-function _L.setBgColor(obj, bgType, bgOpacity, bgColor, startColor, endColor, colorVec)
-	if nil ~= bgType then obj:setBackGroundColorType(bgType) end
-	if nil ~= bgOpacity then obj:setBackGroundColorOpacity(bgOpacity) end
-	if nil ~= startColor and nil ~= endColor then obj:setBackGroundColor(startColor, endColor) end
-	if nil ~= bgColor then obj:setBackGroundColor(bgColor) end
-	if nil ~= colorVec then obj:setBackGroundColorVector(colorVec) end
-	return _L
-end
-
-function _L.setClickEvent(obj, cb, evt)
-	if nil ~= cb then obj:addClickEventListener(cb("", obj, evt)) end
-	return _L
-end
-
-function _L.setTouchEvent(obj, cb, evt)
-	if nil ~= cb then obj:addTouchEventListener(cb("", obj, evt)) end
-	return _L
-end
-
-function _L.bind(obj)
-	_L.lay = ccui.LayoutComponent:bindLayoutComponent(obj)
-	return _L
-end
-
-function _L.setMargin(left, top, right, bottom)
-	if nil ~= left then _L.lay:setLeftMargin(left) end
-	if nil ~= top then _L.lay:setTopMargin(top) end
-	if nil ~= right then _L.lay:setRightMargin(right) end
-	if nil ~= bottom then _L.lay:setBottomMargin(bottom) end
-	return _L
-end
-
-function _L.setSize(width, height, wEnabled, hEnabled)
-	if nil ~= width then _L.lay:setPercentWidth(width) end
-	if nil ~= height then _L.lay:setPercentHeight(height) end
-	if nil ~= wEnabled then _L.lay:setPercentWidthEnabled(wEnabled) end
-	if nil ~= hEnabled then _L.lay:setPercentHeightEnabled(hEnabled) end
-	return _L
-end
-
-function _L.setPosition(x, y, xEnabled, yEnabled)
-	if nil ~= x then _L.lay:setPositionPercentX(x) end
-	if nil ~= y then _L.lay:setPositionPercentY(y) end
-	if nil ~= xEnabled then _L.lay:setPositionPercentXEnabled(xEnabled) end
-	if nil ~= yEnabled then _L.lay:setPositionPercentYEnabled(yEnabled) end
-	return _L
-end
-
-function _L.setStretch(wEnabled, hEnabled)
-	if nil ~= wEnabled then _L.lay:setStretchWidthEnable(wEnabled) end
-	if nil ~= hEnabled then _L.lay:setStretchHeightEnable(hEnabled) end
-	return _L
-end
-
-function _L.setEdge(hEdge, vEdge)
-	if nil ~= hEdge then _L.lay:setHorizontalEdge(hEdge) end
-	if nil ~= vEdge then _L.lay:setVerticalEdge(vEdge) end
-	return _L
-end
--------------------------------------------------------------------------------	
+local _L = require("ccext.LuaResHelper")	
 ]]
 
 local _SCRIPT_HEAD =
@@ -115,7 +31,7 @@ local _M = {}
 local _CREATE_FUNC_HEAD =
 [[
 function _M.create(callBackProvider)
-	local cc, ccui = cc, ccui
+	local cc, ccui, ccspc = cc, ccui, cc.SpriteFrameCache:getInstance()
 
 	local roots, obj = {}
 
@@ -132,12 +48,7 @@ local _SCRIPT_FOOT =
 [[
 
 return _M
-
 ]]
-
---/////////////////////////////////////////////////////////////////////////////
-
-local _M = class("csd2lua")
 
 --/////////////////////////////////////////////////////////////////////////////
 local function nextSiblingIter(node)
@@ -337,8 +248,6 @@ function _M:handleOpts_Node(obj)
 		table.insert(tblVal, string.format("	_L.set%sEvent(obj, callBackProvider, \"%s\")\n",
 			opts.CallbackType, opts.CallbackName))
 	end
-	opts.CallbackType = nil
-	opts.CallbackName = nil
 		
 	for name, value in pairs(opts) do
 		str = ""
@@ -386,18 +295,13 @@ function _M:handleOpts_Node(obj)
 			table.insert(tblVal, 	"	" .. str)
 		end
 	end
-	    	
-	self:writef("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s)\n",
+	
+	self:writef("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s, %s)\n",
 		tostring(tblTmp.Name), tostring(tblTmp.Tag), formatSize(tblTmp.Size), formatPoint(tblTmp.Position), formatPoint(tblTmp.AnchorPoint),
-		formatColor(tblTmp.Color), tostring(tblTmp.Opacity), tostring(tblTmp.LocalZOrder))
+		formatColor(tblTmp.Color), tostring(tblTmp.Opacity), tostring(tblTmp.LocalZOrder), tostring(opts.IgnoreContentAdaptWithSize))
 
     if #tblVal > 0 then
 	    self:write(table.concat(tblVal))
-	end
-	
-	if (opts.IsCustomSize or lays.PercentWidthEnabled or lays.PercentHeightEnabled or opts.Scale9Enabled) 
-		and obj:isIgnoreContentAdaptWithSize() then
-		self:write("	obj:ignoreContentAdaptWithSize(false)\n")
 	end
 end
 
@@ -436,6 +340,10 @@ function _M:handleOpts_ImageView(obj)
 --		end
 	end
 
+	if opts.Size and obj:isIgnoreContentAdaptWithSize() then
+		opts["IgnoreContentAdaptWithSize"] = false
+	end	
+	
 	self:handleOpts_Node(obj)
 
 	if opts.FileData then
@@ -533,7 +441,7 @@ function _M:handleOpts_Button(obj)
 	end
 	
 	if opts.ButtonText and not obj:getTitleText() ~= opts.ButtonText then
-		self:write("	obj:setTitleText([[" .. tostring(opts.ButtonText) .. "]])\n")
+		self:write("	obj:setTitleText(" .. formatString(opts.ButtonText) .. ")\n")
 	end
 	
 	if opts.TextColor and not isColorEqual(obj:getTitleColor(), opts.TextColor) then
@@ -545,7 +453,7 @@ function _M:handleOpts_Button(obj)
 	end
 	
 	if opts.FontName and obj:getTitleFontName() ~= opts.FontName then
-		self:write("	obj:setTitleFontName([[" .. tostring(opts.FontName) .. "]])\n")
+		self:write("	obj:setTitleFontName(" .. formatString(opts.FontName) .. ")\n")
 	end
 end
 
@@ -767,13 +675,13 @@ function _M:onChildren_TextAtlas(obj, name, c)
 end
 
 function _M:handleOpts_TextAtlas(obj)
-	self:handleOpts_Node(obj)
-
 	local opts = self.opts
 	
 	if not obj:isIgnoreContentAdaptWithSize() then
-		self:write("	obj:ignoreContentAdaptWithSize(true)\n")
+		opts["IgnoreContentAdaptWithSize"] = true
 	end	
+
+	self:handleOpts_Node(obj)
 
 	if opts.LabelAtlasFileImage_CNB and opts.StartChar and opts.CharWidth and opts.CharHeight then
 		self:writef("	obj:setProperty(%s, \"%s\", %s, %s, %s)\n", 
@@ -813,13 +721,13 @@ function _M:onChildren_TextBMFont(obj, name, c)
 end
 
 function _M:handleOpts_TextBMFont(obj)
-	self:handleOpts_Node(obj)
-
 	local opts = self.opts
 	
 	if not obj:isIgnoreContentAdaptWithSize() then
-		self:write("	obj:ignoreContentAdaptWithSize(true)\n")
+		opts["IgnoreContentAdaptWithSize"] = true
 	end	
+
+	self:handleOpts_Node(obj)
 
 	if opts.LabelText then
 		self:writef("	obj:setString(%s)\n", formatString(opts.LabelText))
@@ -1117,7 +1025,7 @@ function _M:handleOpts_Layout(obj)
 			local capInsets = string.format("cc.rect(%s, %s, %s, %s)", 
 				tostring(opts.Scale9OriginX or 0), tostring(opts.Scale9OriginY or 0), 
 				tostring(opts.Scale9Width or 0), tostring(opts.Scale9Height or 0))
-			self:writef("	_L:setBgImage(obj, \"%s\", %s, true, %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]), capInsets)
+			self:writef("	_L.setBgImage(obj, \"%s\", %s, true, %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]), capInsets)
 			
 			if opts.Scale9Size then
 				self:writef("	obj:setContentSize(%s)\n", formatSize(opts.Scale9Size))
@@ -1170,13 +1078,13 @@ function _M:onProperty_ScrollView(obj, name, value)
 
 	if name == "ScrollDirectionType" then
 		if value == "Vertical" then
-			opts["Direction"] = 1
+			opts["ScrollDirection"] = 1
 		elseif value == "Horizontal" then
-			opts["Direction"] = 2
+			opts["ScrollDirection"] = 2
 		elseif value == "Vertical_Horizontal" then
-			opts["Direction"] = 3
+			opts["ScrollDirection"] = 3
 		else
-			opts["Direction"] = tonumber(value) or 0
+			opts["ScrollDirection"] = tonumber(value) or 0
 		end
 	elseif name == "IsBounceEnabled" then
 		opts["BounceEnabled"] = (value == "True")
@@ -1209,8 +1117,8 @@ function _M:handleOpts_ScrollView(obj)
 		self:writef("	obj:setInnerContainerSize(%s)\n", formatSize(opts.InnerContainerSize))
 	end
 	
-	if opts.Direction and obj:getDirection() ~= opts.Direction then
-		self:writef("	obj:setDirection(%s)\n", tostring(opts.Direction))
+	if opts.ScrollDirection and obj:getDirection() ~= opts.ScrollDirection then
+		self:writef("	obj:setDirection(%s)\n", tostring(opts.ScrollDirection))
 	end
 	
 	if nil ~= opts.BounceEnabled and obj:isBounceEnabled() ~= opts.BounceEnabled then
@@ -1260,9 +1168,10 @@ function _M:onChildren_ListView(obj, name, c)
 end
 
 function _M:handleOpts_ListView(obj)
-	self:handleOpts_ScrollView(obj)
-
 	local opts = self.opts
+	opts.ScrollDirection = nil
+
+	self:handleOpts_ScrollView(obj)
 	
 	if opts.ItemsMargin and obj:getItemsMargin() ~= opts.ItemsMargin then
 		self:writef("	obj:setItemsMargin(%d)\n", tonumber(opts.ItemsMargin) or 0)
@@ -1344,6 +1253,16 @@ end
 function _M:handleNodeOpts(root, obj, className)
 	local handleOpts = self["handleOpts_" .. className] or self.handleOpts_Node
 	
+	local opts = self.opts
+	local lays = self.lays
+	
+	if type(obj.ignoreContentAdaptWithSize) == "function" then
+		if (opts.IsCustomSize or lays.PercentWidthEnabled or lays.PercentHeightEnabled or opts.Scale9Enabled) 
+			and obj:isIgnoreContentAdaptWithSize() then
+			opts["IgnoreContentAdaptWithSize"] = false
+		end
+	end
+
 	handleOpts(self, obj)
 end
 
@@ -1529,10 +1448,12 @@ end
 --/////////////////////////////////////////////////////////////////////////////
 local _createNodeTree, _i = nil, 0
 _createNodeTree = function(self, root, classType, rootName, rootClassName)
-	local className = string.sub(classType, 1, string.find(classType, "ObjectData") - 1)
---	print("_createNodeTree(classType=" .. classType .. ", className=" .. className .. ")")
+	local pos = string.find(classType, "ObjectData")
+	if not pos then return end
+	
+	local classTypeName = string.sub(classType, 1, pos - 1)
 
-	local obj, script, className = objScriptOf(className)
+	local obj, script, className = objScriptOf(classTypeName)
 	if not obj or not script then return end
 
 	self:write(script)
@@ -1604,7 +1525,7 @@ function _M:addTexture(t, texture)
 	end	
 	table.insert(self._textures, texture)
 	if t == 1 then
-		self:write("	cc.SpriteFrameCache:getInstance():addSpriteFrames(\"" .. texture .. "\")\n")
+		self:write("	ccspc:addSpriteFrames(\"" .. texture .. "\")\n")
 	end	
 end
 
@@ -1678,8 +1599,8 @@ function _M:csd2lua(csdFile, luaFile)
 	self:write(_CREATE_FUNC_FOOT)
 	
 	self:write("_M.textures = {\n")
-	for _, k in pairs(self._textures or {}) do
-		self:write("	\""  .. k ..  "\",\n")
+	for _, v in pairs(self._textures or {}) do
+		self:write("	\""  .. v ..  "\",\n")
 	end
 	self:write("}\n")
 	
@@ -1691,4 +1612,3 @@ end
 --/////////////////////////////////////////////////////////////////////////////
 
 return _M
-
