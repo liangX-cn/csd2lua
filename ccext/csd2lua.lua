@@ -31,7 +31,9 @@ local _M = {}
 local _CREATE_FUNC_HEAD =
 [[
 function _M.create(callBackProvider)
-	local cc, ccui, ccspc = cc, ccui, cc.SpriteFrameCache:getInstance()
+	local cc, ccui, ccs = cc, ccui, ccs
+	local ccspc = cc.SpriteFrameCache:getInstance()
+	local ccsam = ccs.ArmatureDataManager:getInstance()
 
 	local roots, obj = {}
 
@@ -850,6 +852,151 @@ function _M:handleOpts_Sprite(obj)
 end
 
 --/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_Particle(obj, name, value)
+	-- nothing to do
+	return self:onProperty_Node(obj, name, value)
+end
+
+function _M:onChildren_Particle(obj, name, c)
+	local opts = self.opts
+	
+	if name == "FileData" then
+		-- nothing to do(done in objScriptOf())
+	elseif name == "BlendFunc" then
+		opts[name] = { tonumber(c["@Src"]) or 0, tonumber(c["@Dst"]) or 0 }
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+--	print("onChildren_Particle(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+function _M:handleOpts_Particle(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+	
+	if opts.FileData then
+		-- nothing to do(done in objScriptOf())
+	end
+	
+	if opts.BlendFunc then
+		-- TODO
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_GameMap(obj, name, value)
+	-- nothing to do
+	return self:onProperty_Node(obj, name, value)
+end
+
+function _M:onChildren_GameMap(obj, name, c)
+	local opts = self.opts
+	
+	if name == "FileData" then
+		-- nothing to do(done in objScriptOf())
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+--	print("onChildren_GameMap(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+function _M:handleOpts_GameMap(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+	
+	if opts.FileData then
+		-- nothing to do(done in objScriptOf())
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_ProjectNode(obj, name, value)
+	-- nothing to do
+	return self:onProperty_Node(obj, name, value)
+end
+
+function _M:onChildren_ProjectNode(obj, name, c)
+	local opts = self.opts
+	
+	if name == "FileData" then
+		-- nothing to do(done in objScriptOf())
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+--	print("onChildren_ProjectNode(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+function _M:handleOpts_ProjectNode(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+	
+	if opts.FileData then
+		-- nothing to do(done in objScriptOf())
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
+function _M:onProperty_ArmatureNode(obj, name, value)
+	local opts = self.opts
+	
+	if name == "IsLoop" or name == "IsAutoPlay" then
+		opts[name] = (value == "True")
+	elseif name == "CurrentAnimationName" then
+		opts[name] = value
+	else	
+		return self:onProperty_Node(obj, name, value)
+	end	
+
+--	print("onProperty_ArmatureNode(" .. name .. ", " .. tostring(value) .. ")")		
+	return true	
+end
+
+function _M:onChildren_ArmatureNode(obj, name, c)
+	local opts = self.opts
+	
+	if name == "FileData" then
+		opts["ArmatureFileInfo"] = c["@Path"]
+	else
+		return self:onChildren_Node(obj, name, c)
+	end
+	
+--	print("onChildren_ArmatureNode(" .. name .. ", " .. tostring(opts[name]) .. ")")
+	return true	
+end
+
+function _M:handleOpts_ArmatureNode(obj)
+	self:handleOpts_Node(obj)
+
+	local opts = self.opts
+	
+	if opts.ArmatureFileInfo then
+		self:writef("	ccsam:addArmatureFileInfo(\"%s\")\n", opts.ArmatureFileInfo)
+	end
+	
+	self:write("	obj:init(\"DemoPlayer\")\n")
+	
+	if opts.CurrentAnimationName then
+		local loop = 0
+		if opts.IsLoop then loop = 1 end
+		if opts.IsAutoPlay then
+			self:writef("	obj:getAnimation():play(\"%s\", -1, %d)\n", opts.CurrentAnimationName, loop)
+		else
+			self:writef("	obj:getAnimation():play(\"%s\")\n", opts.CurrentAnimationName)
+			self:write("	obj:getAnimation():gotoAndPause(0)\n")
+		end	
+	end
+end
+
+--/////////////////////////////////////////////////////////////////////////////
 function _M:onProperty_Slider(obj, name, value)
 	local opts = self.opts
 	
@@ -1329,117 +1476,87 @@ function _M:parseNodeXml(root, obj, className)
 end
 
 --/////////////////////////////////////////////////////////////////////////////
-local function objScriptOf(className)
+function _M:objScriptOf(className, root)
 	local obj, script = nil, nil
     if className == "ProjectNode" then
-		obj = ccui.Node:create()
-		script = 
-[[
-	obj = cc.Node:create()
-]]
+		local fileData = root["FileData"] 
+		if fileData and fileData["@Path"] then
+			local path = string.gsub(fileData["@Path"], ".csd", ".lua")
+			obj = cc.Node:create()
+			script = string.format("	obj = require(\"%s\").create(callBackProvider).root\n", path)
+		end	
+    elseif className == "GameNode" or className == "SingleNode" or className == "Node" then
+		obj = cc.Node:create()
+		script = "	obj = cc.Node:create()\n"
     elseif className == "SimpleAudio" then
 --        reader = ComAudioReader::getInstance();
     elseif className == "Panel" or className == "Layout" then
     	className = "Layout"
 		obj = ccui.Layout:create()
-		script = 
-[[
-	obj = ccui.Layout:create()
-]]
+		script = "	obj = ccui.Layout:create()\n"
     elseif className == "TextButton" or className == "Button" then
     	className = "Button"
 		obj = ccui.Button:create()
-		script = 
-[[
-	obj = ccui.Button:create()
-]]
+		script = "	obj = ccui.Button:create()\n"
     elseif className == "TextArea" or className == "Text" or className == "Label" then
     	className = "Text"
 		obj = ccui.Text:create()
-		script = 
-[[
-	obj = ccui.Text:create()
-]]
+		script = "	obj = ccui.Text:create()\n"
     elseif className == "RichTextEx" then
 		obj = require("ccext.RichTextEx"):create()
-		script = 
-[[
-	obj = require("ccext.RichTextEx"):create()
-]]
+		script = "	obj = require(\"ccext.RichTextEx\"):create()\n"
     elseif className == "TextField" then
 		obj = ccui.TextField:create()
-		script = 
-[[
-	obj = ccui.TextField:create()
-]]
+		script = "	obj = ccui.TextField:create()\n"
     elseif className == "LabelAtlas" or className == "TextAtlas" then
     	className = "TextAtlas"
 		obj = ccui.TextAtlas:create()
-		script = 
-[[
-	obj = ccui.TextAtlas:create()
-]]
+		script = "	obj = ccui.TextAtlas:create()\n"
     elseif className == "LabelBMFont" or className == "TextBMFont" then
     	className = "TextBMFont"
 		obj = ccui.TextBMFont:create()
-		script = 
-[[
-	obj = ccui.TextBMFont:create()
-]]
+		script = "	obj = ccui.TextBMFont:create()\n"
     elseif className == "Slider" then
 		obj = ccui.Slider:create()
-		script = 
-[[
-	obj = ccui.Slider:create()
-]]
+		script = "	obj = ccui.Slider:create()\n"
     elseif className == "LoadingBar" then
 		obj = ccui.LoadingBar:create()
-		script = 
-[[
-	obj = ccui.LoadingBar:create()
-]]
+		script = "	obj = ccui.LoadingBar:create()\n"
     elseif className == "Sprite" then
-		obj = cc.LoadingBar:create()
-		script = 
-[[
-	obj = cc.Sprite:create()
-]]
+		obj = cc.Sprite:create()
+		script = "	obj = cc.Sprite:create()\n"
     elseif className == "CheckBox" then
 		obj = ccui.CheckBox:create()
-		script = 
-[[
-	obj = ccui.CheckBox:create()
-]]
+		script = "	obj = ccui.CheckBox:create()\n"
     elseif className == "ImageView" then
 		obj = ccui.ImageView:create()
-		script = 
-[[
-	obj = ccui.ImageView:create()
-]]
+		script = "	obj = ccui.ImageView:create()\n"
     elseif className == "ScrollView" then
 		obj = ccui.ScrollView:create()
-		script = 
-[[
-	obj = ccui.ScrollView:create()
-]]
+		script = "	obj = ccui.ScrollView:create()\n"
     elseif className == "ListView" then
 		obj = ccui.ListView:create()
-		script = 
-[[
-	obj = ccui.ListView:create()
-]]
+		script = "	obj = ccui.ListView:create()\n"
     elseif className == "PageView" then
 		obj = ccui.PageView:create()
-		script = 
-[[
-	obj = ccui.PageView:create()
-]]
-    elseif className == "Node" then
-		obj = cc.Node:create()
-		script = 
-[[
-	obj = cc.Node:create()
-]]
+		script = "	obj = ccui.PageView:create()\n"
+	elseif className == "Particle" then
+		local fileData = root["FileData"] 
+		if fileData and fileData["@Path"] then
+			obj = cc.ParticleSystemQuad:create()
+			script = string.format("	obj = cc.ParticleSystemQuad:create(\"%s\")\n", fileData["@Path"])
+		end
+	elseif className == "GameMap" then
+		local fileData = root["FileData"] 
+		if fileData and fileData["@Path"] then
+--			obj = cc.TMXTiledMap:create(fileData["@Path"])
+			obj = cc.Node:create()
+			script = string.format("	obj = cc.TMXTiledMap:create(\"%s\")\n", fileData["@Path"])
+		end
+	elseif className == "ArmatureNode" then
+		obj = ccs.Armature:create()
+		script = "	obj = ccs.Armature:create()\n"
+	elseif className == "SimpleAudio" then
     end
     
     return obj, script, className
@@ -1453,11 +1570,11 @@ _createNodeTree = function(self, root, classType, rootName, rootClassName)
 	
 	local classTypeName = string.sub(classType, 1, pos - 1)
 
-	local obj, script, className = objScriptOf(classTypeName)
+	local obj, script, className = self:objScriptOf(classTypeName, root)
 	if not obj or not script then return end
 
 	self:write(script)
-	
+		
 	if rootName then
 		if rootClassName == "PageView" and className == "Layout" then
 			self:write("	" .. rootName .. ":addPage(obj)\n")
@@ -1579,6 +1696,8 @@ function _M:csd2lua(csdFile, luaFile)
 	self:write(_SCRIPT_HELPER)
 	self:write(_SCRIPT_HEAD)
 	self:write(_CREATE_FUNC_HEAD)
+	
+	local tblAni = {}
 
 	nextSiblingNode = nextSiblingIter(node)
 	node = nextSiblingNode()
@@ -1586,7 +1705,10 @@ function _M:csd2lua(csdFile, luaFile)
 		nodeName = node:name()
 
 		if nodeName == "Animation" then
-			-- TODO.
+			table.insert(tblAni, "	obj = ccs.ActionTimeline:create()\n")
+			table.insert(tblAni, string.format("	obj:setDuration(%d)\n", tonumber(node["@Duration"]) or 0))
+			table.insert(tblAni, string.format("	obj:setTimeSpeed(%d)\n", tonumber(node["@Speed"]) or 1))
+			table.insert(tblAni, "	roots.animation = obj\n\n")
 		elseif nodeName == "ObjectData" then
 			self:createNodeTree(node, "NodeObjectData")
 		elseif nodeName == "AnimationList" then
@@ -1594,6 +1716,10 @@ function _M:csd2lua(csdFile, luaFile)
 		end
 		
 		node = nextSiblingNode()
+	end
+	
+	if #tblAni > 0 then
+		self:write(table.concat(tblAni))
 	end
 
 	self:write(_CREATE_FUNC_FOOT)
