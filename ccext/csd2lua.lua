@@ -712,7 +712,7 @@ function _M:onChildren_TextBMFont(obj, name, c)
 	
 	if name == "LabelBMFontFile_CNB" then
 		local f = c["@Path"] or "", 0, ""
-		self:addTexture(0, f) 
+--		self:addTexture(0, f) 
 		opts[name] = f
 	else
 		return self:onChildren_Node(obj, name, c)
@@ -887,12 +887,12 @@ function _M:handleOpts_Particle(obj)
 end
 
 --/////////////////////////////////////////////////////////////////////////////
-function _M:onProperty_GameMap(obj, name, value)
+function _M:onProperty_TMXTiledMap(obj, name, value)
 	-- nothing to do
 	return self:onProperty_Node(obj, name, value)
 end
 
-function _M:onChildren_GameMap(obj, name, c)
+function _M:onChildren_TMXTiledMap(obj, name, c)
 	local opts = self.opts
 	
 	if name == "FileData" then
@@ -901,11 +901,11 @@ function _M:onChildren_GameMap(obj, name, c)
 		return self:onChildren_Node(obj, name, c)
 	end
 	
---	print("onChildren_GameMap(" .. name .. ", " .. tostring(opts[name]) .. ")")
+--	print("onChildren_TMXTiledMap(" .. name .. ", " .. tostring(opts[name]) .. ")")
 	return true	
 end
 
-function _M:handleOpts_GameMap(obj)
+function _M:handleOpts_TMXTiledMap(obj)
 	self:handleOpts_Node(obj)
 
 	local opts = self.opts
@@ -945,7 +945,7 @@ function _M:handleOpts_ProjectNode(obj)
 end
 
 --/////////////////////////////////////////////////////////////////////////////
-function _M:onProperty_ArmatureNode(obj, name, value)
+function _M:onProperty_Armature(obj, name, value)
 	local opts = self.opts
 	
 	if name == "IsLoop" or name == "IsAutoPlay" then
@@ -956,11 +956,11 @@ function _M:onProperty_ArmatureNode(obj, name, value)
 		return self:onProperty_Node(obj, name, value)
 	end	
 
---	print("onProperty_ArmatureNode(" .. name .. ", " .. tostring(value) .. ")")		
+--	print("onProperty_Armature(" .. name .. ", " .. tostring(value) .. ")")		
 	return true	
 end
 
-function _M:onChildren_ArmatureNode(obj, name, c)
+function _M:onChildren_Armature(obj, name, c)
 	local opts = self.opts
 	
 	if name == "FileData" then
@@ -969,11 +969,11 @@ function _M:onChildren_ArmatureNode(obj, name, c)
 		return self:onChildren_Node(obj, name, c)
 	end
 	
---	print("onChildren_ArmatureNode(" .. name .. ", " .. tostring(opts[name]) .. ")")
+--	print("onChildren_Armature(" .. name .. ", " .. tostring(opts[name]) .. ")")
 	return true	
 end
 
-function _M:handleOpts_ArmatureNode(obj)
+function _M:handleOpts_Armature(obj)
 	self:handleOpts_Node(obj)
 
 	local opts = self.opts
@@ -1547,6 +1547,7 @@ function _M:objScriptOf(className, root)
 			script = string.format("	obj = cc.ParticleSystemQuad:create(\"%s\")\n", fileData["@Path"])
 		end
 	elseif className == "GameMap" then
+		className = "TMXTiledMap"
 		local fileData = root["FileData"] 
 		if fileData and fileData["@Path"] then
 --			obj = cc.TMXTiledMap:create(fileData["@Path"])
@@ -1554,6 +1555,7 @@ function _M:objScriptOf(className, root)
 			script = string.format("	obj = cc.TMXTiledMap:create(\"%s\")\n", fileData["@Path"])
 		end
 	elseif className == "ArmatureNode" then
+		className = "Armature"
 		obj = ccs.Armature:create()
 		script = "	obj = ccs.Armature:create()\n"
 	elseif className == "SimpleAudio" then
