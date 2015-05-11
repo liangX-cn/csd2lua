@@ -24,7 +24,7 @@ local _L = require("ccext.LuaResHelper")
 local _SCRIPT_HEAD =
 [[
 
-local _M = {}
+local _M = { CCSVER = "%s" }
 
 ]]
 
@@ -34,8 +34,12 @@ function _M.create(callBackProvider)
 	local cc, ccui, ccs = cc, ccui, ccs
 	local ccspc = cc.SpriteFrameCache:getInstance()
 	local ccsam = ccs.ArmatureDataManager:getInstance()
-
-	local roots, obj = {}
+	
+	local setValue, bind = _L.setValue, _L.bind
+	local setBgColor, setBgImage = _L.setBgColor, _L.setBgImage
+	local setClickEvent, setTouchEvent = _L.setClickEvent, _L.setTouchEvent
+	
+	local roots, obj, inc = {}
 
 ]]
 
@@ -247,7 +251,7 @@ function _M:handleOpts_Node(obj)
 	
 	if opts.CallbackType and opts.CallbackName and 
 		(opts.CallbackType == "Click" or opts.CallbackType == "Touch") then
-		table.insert(tblVal, string.format("	_L.set%sEvent(obj, callBackProvider, \"%s\")\n",
+		table.insert(tblVal, string.format("	set%sEvent(obj, callBackProvider, \"%s\")\n",
 			opts.CallbackType, opts.CallbackName))
 	end
 		
@@ -298,7 +302,7 @@ function _M:handleOpts_Node(obj)
 		end
 	end
 	
-	self:writef("	_L.setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s, %s)\n",
+	self:writef("	setValue(obj, \"%s\", %s, %s, %s, %s, %s, %s, %s, %s)\n",
 		tostring(tblTmp.Name), tostring(tblTmp.Tag), formatSize(tblTmp.Size), formatPoint(tblTmp.Position), formatPoint(tblTmp.AnchorPoint),
 		formatColor(tblTmp.Color), tostring(tblTmp.Opacity), tostring(tblTmp.LocalZOrder), tostring(opts.IgnoreContentAdaptWithSize))
 
@@ -1172,7 +1176,7 @@ function _M:handleOpts_Layout(obj)
 			local capInsets = string.format("cc.rect(%s, %s, %s, %s)", 
 				tostring(opts.Scale9OriginX or 0), tostring(opts.Scale9OriginY or 0), 
 				tostring(opts.Scale9Width or 0), tostring(opts.Scale9Height or 0))
-			self:writef("	_L.setBgImage(obj, \"%s\", %s, true, %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]), capInsets)
+			self:writef("	setBgImage(obj, \"%s\", %s, true, %s)\n", tostring(opts.FileData[1]), tostring(opts.FileData[2]), capInsets)
 			
 			if opts.Scale9Size then
 				self:writef("	obj:setContentSize(%s)\n", formatSize(opts.Scale9Size))
@@ -1214,7 +1218,7 @@ function _M:handleOpts_Layout(obj)
 			bgOpacity = opts.BackGroundColorOpacity
 		end
 
-		self:writef("	_L.setBgColor(obj, %s, %s, %s, %s, %s, %s)\n",
+		self:writef("	setBgColor(obj, %s, %s, %s, %s, %s, %s)\n",
 			tostring(bgType), tostring(bgOpacity), formatColor(bgColor), formatColor(startColor), formatColor(endColor), formatPoint(colorVec))
 	end
 end
@@ -1455,7 +1459,7 @@ function _M:handleNodeLays(root, obj, className)
 	end		
 	
 	if #margins > 0 or #sizes > 0 or #positions > 0 or #stretchs > 0 or #edges > 0 then
-		self:writef("	_L.bind(obj)%s%s%s%s%s\n", margins, sizes, positions, stretchs, edges)
+		self:writef("	bind(obj)%s%s%s%s%s\n", margins, sizes, positions, stretchs, edges)
 	end	
 end
 
@@ -1483,7 +1487,9 @@ function _M:objScriptOf(className, root)
 		if fileData and fileData["@Path"] then
 			local path = string.gsub(fileData["@Path"], ".csd", ".lua")
 			obj = cc.Node:create()
-			script = string.format("	obj = require(\"%s\").create(callBackProvider).root\n", path)
+			script = string.format("	inc = require(\"%s\").create(callBackProvider)\n", path)
+			script = script .. "	if inc.animation then inc.root:runAction(inc.animation) end\n"
+			script = script .. "	obj = inc.root\n"
 		end	
     elseif className == "GameNode" or className == "SingleNode" or className == "Node" then
 		obj = cc.Node:create()
@@ -1568,11 +1574,11 @@ end
 local _createNodeTree, _i = nil, 0
 _createNodeTree = function(self, root, classType, rootName, rootClassName)
 	local pos = string.find(classType, "ObjectData")
-	if not pos then return end
-	
-	local classTypeName = string.sub(classType, 1, pos - 1)
+	if pos then	
+		classType = string.sub(classType, 1, pos - 1)
+	end	
 
-	local obj, script, className = self:objScriptOf(classTypeName, root)
+	local obj, script, className = self:objScriptOf(classType, root)
 	if not obj or not script then return end
 
 	self:write(script)
@@ -1606,7 +1612,7 @@ _createNodeTree = function(self, root, classType, rootName, rootClassName)
 			if udata then
 				local pos = string.find(udata, "@class_", 1, true)
 				if pos then
-					className = string.sub(udata,  pos + 7) .. "ObjectData"
+					className = string.sub(udata,  pos + 7)	-- .. "ObjectData"
 				end					
 			end
 			
@@ -1656,19 +1662,16 @@ function _M:csd2lua(csdFile, luaFile)
 		error("XmlParser:loadFile(" .. csdFile ..") bad XML.")
 		return 
 	end
-		
-	local serializeEnabled = false
-	local csdVersion, nodeName
 	
-	local root = xml:children()[1]
-	local nextSiblingNode = nextSiblingIter(root)
-	local node = nextSiblingNode()
+	local nextSiblingNode = nextSiblingIter(xml:children()[1])
+	local node, name, serializeEnabled = nextSiblingNode(), nil, false
+	
 	while node do
-		nodeName = node:name()
+		name = node:name()
 		
-		if nodeName == "PropertyGroup" then
-			csdVersion = node["@Version"] or "2.1.0.0"
-		elseif nodeName == "Content" and node:numProperties() == 0 then
+		if name == "PropertyGroup" then
+			self._csdVersion = node["@Version"] or "2.1.0.0"
+		elseif name == "Content" and node:numProperties() == 0 then
 			serializeEnabled = true
 			break
 		end
@@ -1696,7 +1699,7 @@ function _M:csd2lua(csdFile, luaFile)
 	end
 
 	self:write(_SCRIPT_HELPER)
-	self:write(_SCRIPT_HEAD)
+	self:write(string.format(_SCRIPT_HEAD, self._csdVersion or ""))
 	self:write(_CREATE_FUNC_HEAD)
 	
 	local tblAni = {}
@@ -1704,16 +1707,16 @@ function _M:csd2lua(csdFile, luaFile)
 	nextSiblingNode = nextSiblingIter(node)
 	node = nextSiblingNode()
 	while node do
-		nodeName = node:name()
+		name = node:name()
 
-		if nodeName == "Animation" then
+		if name == "Animation" then
 			table.insert(tblAni, "	obj = ccs.ActionTimeline:create()\n")
 			table.insert(tblAni, string.format("	obj:setDuration(%d)\n", tonumber(node["@Duration"]) or 0))
 			table.insert(tblAni, string.format("	obj:setTimeSpeed(%d)\n", tonumber(node["@Speed"]) or 1))
 			table.insert(tblAni, "	roots.animation = obj\n\n")
-		elseif nodeName == "ObjectData" then
+		elseif name == "ObjectData" then
 			self:createNodeTree(node, "NodeObjectData")
-		elseif nodeName == "AnimationList" then
+		elseif name == "AnimationList" then
 			-- TODO.
 		end
 		
